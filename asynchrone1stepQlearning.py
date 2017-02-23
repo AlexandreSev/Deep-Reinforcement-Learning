@@ -143,8 +143,6 @@ class slave_worker(mp.Process):
     
     def __init__(self, T_max=100, Itarget=15, Iasyncupdate=10, gamma=0.9, learning_rate=0.001, 
                    env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, verbose=False, **kwargs):
-        import tensorflow as tf
-        
         super(slave_worker, self).__init__(**kwargs)
         self.T_max = T_max
         self.Itarget = Itarget
@@ -155,27 +153,25 @@ class slave_worker(mp.Process):
         
         self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
         self.variables_dict["y"] = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
-                                 hidden_size=model_option["hidden_size"])
+                                               hidden_size=model_option["hidden_size"])
 
         self.loss, self.train_step = build_loss(self.variables_dict["y"], self.variables_dict)
         
         self.variables_dict_minus = create_variable(name="_minus", n_hidden=model_option["n_hidden"], 
-                                                   hidden_size=model_option["hidden_size"])
+                                                    hidden_size=model_option["hidden_size"])
         self.variables_dict_minus["y"] = build_model(self.variables_dict_minus, name="_minus", n_hidden=model_option["n_hidden"], 
-                                       hidden_size=model_option["hidden_size"])
+                                                     hidden_size=model_option["hidden_size"])
         self.loss_minus, self.train_step_minus = build_loss(self.variables_dict_minus["y"], self.variables_dict_minus)
-        
-        self.sess = tf.Session()
-        
-        self.sess.run(tf.global_variables_initializer())
             
         
     def run(self):
-        global T, l_theta, l_theta_minus
         import tensorflow as tf
-        
-        self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
+        global T, l_theta, l_theta_minus
 
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+
+        self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
         self.variables_dict_minus = read_value_from_theta(l_theta_minus, self.variables_dict_minus, self.sess)
 
         epsilon = 0.9
@@ -187,8 +183,6 @@ class slave_worker(mp.Process):
         observation = self.env.reset()
         t_init = t
         
-        #print("OK")
-
         while T.value<self.T_max:
             
             if T.value %500 == 0:
@@ -333,7 +327,7 @@ def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}
     for i in range(nb_process):
         print("Process %s starting"%i)
         job = slave_worker(T_max=T_max, model_option=model_option, env_name=env_name)
-        job.run()
+        job.start()
         jobs.append(job)
     
     t_init = time.time()
@@ -379,4 +373,4 @@ def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}
 
 # In[ ]:
 
-main(3, T_max=10)
+main(3, T_max=1000)
