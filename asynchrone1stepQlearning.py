@@ -146,7 +146,7 @@ def read_value_from_theta(l_theta, variables_dict, sess):
             (key[-7:] != "_assign")]
     for i, key in enumerate(keys):
         feed_dict = {variables_dict[key + "_ph"]: l_theta[i].value}
-        sess.run(variables_dict[key + "_ph"], feed_dict=feed_dict)
+        sess.run(variables_dict[key + "_assign"], feed_dict=feed_dict)
     return variables_dict
 
 def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
@@ -193,7 +193,6 @@ class slave_worker(mp.Process):
                                                     hidden_size=model_option["hidden_size"])
         self.variables_dict_minus["y"] = build_model(self.variables_dict_minus, name="_minus", n_hidden=model_option["n_hidden"], 
                                                      hidden_size=model_option["hidden_size"])
-        self.loss_minus, self.train_step_minus = build_loss(self.variables_dict_minus["y"], self.variables_dict_minus)
             
         
     def run(self):
@@ -221,8 +220,9 @@ class slave_worker(mp.Process):
             #     print(T.value)
 
             self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
-
             self.variables_dict_minus = read_value_from_theta(l_theta_minus, self.variables_dict_minus, self.sess)
+
+            print(self.sess.run(self.variables_dict["Wo"]))
 
             action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
 
@@ -386,9 +386,9 @@ def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]
         job.start()
         jobs.append(job)
     
-    exemple = master_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name)
-    exemple.start()
-    exemple.join()
+    # exemple = master_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name)
+    # exemple.start()
+    # exemple.join()
     
     """model.set_weights(theta.value)
     
@@ -429,4 +429,4 @@ if __name__=="__main__":
     if len(args)>1:
         main(3, T_max=int(args[1]))
     else:
-        main(3)
+        main(3, 50000)
