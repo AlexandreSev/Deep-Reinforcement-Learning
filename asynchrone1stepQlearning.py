@@ -127,30 +127,43 @@ def epsilon_greedy_policy(variables_dict, observation, epsilon, env, sess):
 
 # In[5]:
 
-def assign_value_to_theta(l_theta, variables_dict, sess):
+def assign_value_to_theta(variables_dict, sess):
+    global l_theta
     import tensorflow as tf
     keys = variables_dict.keys()
     keys.sort()
     keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
             (key[-7:] != "_assign")]
     for i, key in enumerate(keys):
-        with l_theta[i].get_lock():
-            l_theta[i].value = sess.run(variables_dict[key])
+        l_theta[i] = sess.run(variables_dict[key])
     return l_theta
     
-def read_value_from_theta(l_theta, variables_dict, sess):
+def read_value_from_theta(variables_dict, sess):
+    global l_theta
     import tensorflow as tf
     keys = variables_dict.keys()
     keys.sort()
     keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
             (key[-7:] != "_assign")]
     for i, key in enumerate(keys):
-        feed_dict = {variables_dict[key + "_ph"]: l_theta[i].value}
+        feed_dict = {variables_dict[key + "_ph"]: l_theta[i]}
+        sess.run(variables_dict[key + "_assign"], feed_dict=feed_dict)
+    return variables_dict
+
+def read_value_from_theta_minus(variables_dict, sess):
+    global l_theta_minus
+    import tensorflow as tf
+    keys = variables_dict.keys()
+    keys.sort()
+    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
+            (key[-7:] != "_assign")]
+    for i, key in enumerate(keys):
+        feed_dict = {variables_dict[key + "_ph"]: l_theta_minus[i]}
         sess.run(variables_dict[key + "_assign"], feed_dict=feed_dict)
     return variables_dict
 
 def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
-    l_theta = []
+    l_theta = mp.Manager().list()
     
     shapes = [(input_size, hidden_size[0])]
     for i in range(n_hidden - 1):
@@ -163,8 +176,8 @@ def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
     shapes.append((1, output_size))
     
     for i, shape in enumerate(shapes):
-        l_theta.append(mp.Array(ctypes.c_double, shape))
-        l_theta[i].value = np.random.uniform(low=-0.01, high=0.01, size=shape)
+        l_theta.append(np.random.uniform(low=-0.01, high=0.01, size=shape))
+        # l_theta[i].value = np.random.uniform(low=-0.01, high=0.01, size=shape)
         
     return l_theta
 
@@ -202,8 +215,8 @@ class slave_worker(mp.Process):
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
-        self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
-        self.variables_dict_minus = read_value_from_theta(l_theta_minus, self.variables_dict_minus, self.sess)
+        self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
+        self.variables_dict_minus = read_value_from_theta_minus(self.variables_dict_minus, self.sess)
 
         epsilon = 0.9
         t = 0
@@ -219,10 +232,10 @@ class slave_worker(mp.Process):
             # if T.value %500 == 0:
             #     print(T.value)
 
-            self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
-            self.variables_dict_minus = read_value_from_theta(l_theta_minus, self.variables_dict_minus, self.sess)
+            self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
+            self.variables_dict_minus = read_value_from_theta(self.variables_dict_minus, self.sess)
 
-            print(self.sess.run(self.variables_dict["Wo"]))
+            # print(self.sess.run(self.variables_dict["Wo"]))
 
             action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
 
@@ -264,8 +277,7 @@ class slave_worker(mp.Process):
             t += 1
             if T.value %self.Itarget == 0:
                 for i, theta_minus in enumerate(l_theta_minus):
-                    with theta_minus.get_lock():
-                        l_theta_minus[i].value = l_theta[i].value
+                    l_theta_minus[i] = l_theta[i]
                         
             #print("Checkpoint 5")
             
@@ -278,7 +290,7 @@ class slave_worker(mp.Process):
                 
                 y_batch_arr = np.array(y_batch).reshape((-1, 1)) * action_batch_multiplier
 
-                self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
+                self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
                 
                 feed_dict = {self.variables_dict["input_observation"]: observation_batch[sampling, :],
                              self.variables_dict["y_true"]: y_batch_arr[sampling, :], 
@@ -286,7 +298,7 @@ class slave_worker(mp.Process):
                 self.sess.run(self.train_step, feed_dict=feed_dict)
 
 
-                l_theta = assign_value_to_theta(l_theta, self.variables_dict, self.sess)
+                l_theta = assign_value_to_theta(self.variables_dict, self.sess)
 
                 firstiter = True
                 y_batch = []
@@ -323,7 +335,7 @@ class master_worker(mp.Process):
         self.sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
 
-        self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
+        self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
         saver.save(self.sess, './ptb_rnnlm.weights')
 
         epsilon = 0.01
@@ -331,8 +343,8 @@ class master_worker(mp.Process):
 
         t_init = time.time()
         while T.value<self.T_max:
+            #print(l_theta[-1])
             if time.time() - t_init > 10:
-                print(T.value)
                 t_init = time.time()
 
                 t = 0
@@ -386,9 +398,9 @@ def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]
         job.start()
         jobs.append(job)
     
-    # exemple = master_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name)
-    # exemple.start()
-    # exemple.join()
+    exemple = master_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name)
+    exemple.start()
+    exemple.join()
     
     """model.set_weights(theta.value)
     
