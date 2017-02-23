@@ -276,18 +276,17 @@ class master_worker(mp.Process):
                                                hidden_size=model_option["hidden_size"])
 
         self.loss, self.train_step = build_loss(self.variables_dict["y"], self.variables_dict)
-        
-        
-        
-        
+
     def run(self):
         global l_theta
         import tensorflow as tf
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
-        
+        saver = tf.train.Saver()
+
         self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
+        saver.save(self.sess, './ptb_rnnlm.weights')
 
         epsilon = 0.01
         observation = self.env.reset()
@@ -311,7 +310,7 @@ class master_worker(mp.Process):
                 print("Environment last %s timesteps"%t)
         return
 
-def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}, env_name="CartPole-v0"):
+def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]}, env_name="CartPole-v0"):
     global T, l_theta, l_theta_minus
     T = mp.Value('i', 0)
     
@@ -371,7 +370,6 @@ def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}
 if __name__=="__main__":
     import sys
     args = sys.argv
-    print(args[1])
     if len(args)>1:
         main(3, T_max=int(args[1]))
     else:
