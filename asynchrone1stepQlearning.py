@@ -217,10 +217,8 @@ class slave_worker(mp.Process):
         
         while T.value<self.T_max:
             
-            if T.value %500 == 0:
-                print(T.value)
-
-            print(self.sess.run(self.variables_dict["bo"]))
+            # if T.value %500 == 0:
+            #     print(T.value)
 
             self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
 
@@ -289,6 +287,9 @@ class slave_worker(mp.Process):
 
 
                 l_theta = assign_value_to_theta(l_theta, self.variables_dict, self.sess)
+
+                firstiter = True
+                y_batch = []
 
             if epsilon>0.01:
                 epsilon -= 0.895/50000
@@ -362,7 +363,7 @@ def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]
     
     t_init = time.time()
     while T.value<T_max:
-        if time.time() - t_init > 1:
+        if time.time() - t_init > 10:
             print(T.value)
             t_init = time.time()
     print("Training completed")
@@ -407,6 +408,6 @@ if __name__=="__main__":
     import sys
     args = sys.argv
     if len(args)>1:
-        main(1, T_max=int(args[1]))
+        main(3, T_max=int(args[1]))
     else:
         main(3)
