@@ -299,12 +299,13 @@ class slave_worker(mp.Process):
 
 class master_worker(mp.Process):
     
-    def __init__(self, T_max=100, nb_env=10, env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
+    def __init__(self, T_max=1000, t_max=200, nb_env=10, env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, **kwargs):
         import tensorflow as tf
         
         super(master_worker, self).__init__(**kwargs)
         self.T_max = T_max
+        self.t_max = t_max
         self.env = gym.make(env_name)
         self.nb_env = nb_env
         
@@ -327,6 +328,30 @@ class master_worker(mp.Process):
 
         epsilon = 0.01
         observation = self.env.reset()
+
+        t_init = time.time()
+        while T.value<self.T_max:
+            if time.time() - t_init > 10:
+                print(T.value)
+                t_init = time.time()
+
+                t = 0
+                while t<self.t_max:
+                    t += 1
+                    self.env.render()
+
+                    action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
+
+                    observation, reward, done, info = self.env.step(action) 
+
+                    if done:
+                        print("Environment completed in %s timesteps"%t)
+                        observation = self.env.reset()
+                        t += self.T_max
+                if not done:
+                    print("Environment last %s timesteps"%t)
+
+        print("Training completed")
 
         for i in range(self.nb_env):
             t = 0
@@ -361,15 +386,9 @@ def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]
         job.start()
         jobs.append(job)
     
-    t_init = time.time()
-    while T.value<T_max:
-        if time.time() - t_init > 10:
-            print(T.value)
-            t_init = time.time()
-    print("Training completed")
-    
-    exemple = master_worker(T_max=T_max, model_option=model_option, env_name=env_name)
-    exemple.run()
+    exemple = master_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name)
+    exemple.start()
+    exemple.join()
     
     """model.set_weights(theta.value)
     
