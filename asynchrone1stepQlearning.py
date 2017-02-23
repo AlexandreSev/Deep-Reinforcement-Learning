@@ -32,16 +32,45 @@ def create_variable(name="", input_size=4, output_size=2, n_hidden=2, hidden_siz
     import tensorflow as tf
     
     variables_dict = {}
+    
     variables_dict["W1" + name] = weight_variable([input_size, hidden_size[0]], name="W1" + name)
+    variables_dict["W1" + name + "_ph"] = tf.placeholder(tf.float32, shape=[input_size, hidden_size[0]], 
+        name="W1"+name+"_ph")
+    variables_dict["W1" + name + "_assign"] = tf.assign(variables_dict["W1" + name], 
+        variables_dict["W1" + name + "_ph"])
+    
     variables_dict["b1" + name] = bias_variable((1, hidden_size[0]), name="b1" + name)
-    
+    variables_dict["b1" + name + "_ph"] = tf.placeholder(tf.float32, shape=[1, hidden_size[0]], 
+        name="b1"+name+"_ph")
+    variables_dict["b1" + name + "_assign"] = tf.assign(variables_dict["b1" + name], 
+        variables_dict["b1" + name + "_ph"])
+
     for i in range(n_hidden-1):
-        variables_dict["W"+str(i+2) + name] = weight_variable([hidden_size[i], hidden_size[i+1]], name="W"+str(i+2) + name)
+        variables_dict["W"+str(i+2) + name] = weight_variable([hidden_size[i], hidden_size[i+1]], 
+            name="W"+str(i+2) + name)
+        variables_dict["W"+str(i+2) + name + "_ph"] = tf.placeholder(tf.float32, 
+            shape=[hidden_size[i], hidden_size[i+1]], name="W"+str(i+2)+name+"_ph")
+        variables_dict["W"+str(i+2) + name + "_assign"] = tf.assign(variables_dict["W"+str(i+2) + name], 
+            variables_dict["W"+str(i+2) + name + "_ph"])
+
         variables_dict["b"+str(i+2) + name] = bias_variable((1, hidden_size[i+1]), name="b"+str(i+2) + name)
-    
+        variables_dict["b"+str(i+2) + name + "_ph"] = tf.placeholder(tf.float32, 
+            shape=[1, hidden_size[i+1]], name="b"+str(i+2)+name+"_ph")
+        variables_dict["b"+str(i+2) + name + "_assign"] = tf.assign(variables_dict["b"+str(i+2) + name], 
+            variables_dict["b"+str(i+2) + name + "_ph"])
+
     variables_dict["Wo" + name] = weight_variable([hidden_size[-1], output_size], name="Wo" + name)
+    variables_dict["Wo" + name + "_ph"] = tf.placeholder(tf.float32, shape=[hidden_size[-1], output_size], 
+        name="Wo"+name+"_ph")
+    variables_dict["Wo" + name + "_assign"] = tf.assign(variables_dict["Wo" + name], 
+        variables_dict["Wo" + name + "_ph"])
+
     variables_dict["bo" + name] = bias_variable((1, output_size), name="bo" + name)
-    
+    variables_dict["bo" + name + "_ph"] = tf.placeholder(tf.float32, shape=[1, output_size], 
+        name="bo"+name+"_ph")
+    variables_dict["bo" + name + "_assign"] = tf.assign(variables_dict["bo" + name], 
+        variables_dict["bo" + name + "_ph"])
+
     variables_dict["input_observation"] = tf.placeholder(tf.float32, shape=[None, input_size], name="i_observation" + name)
     
     variables_dict["y_true"] = tf.placeholder(tf.float32, shape=[None, output_size], name="y_true" + name)
@@ -102,19 +131,22 @@ def assign_value_to_theta(l_theta, variables_dict, sess):
     import tensorflow as tf
     keys = variables_dict.keys()
     keys.sort()
+    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
+            (key[-7:] != "_assign")]
     for i, key in enumerate(keys):
-        if key not in ["input_observation", "y_true", "y_action", "y"]:
-            with l_theta[i].get_lock():
-                l_theta[i].value = sess.run(variables_dict[key])
+        with l_theta[i].get_lock():
+            l_theta[i].value = sess.run(variables_dict[key])
     return l_theta
     
 def read_value_from_theta(l_theta, variables_dict, sess):
     import tensorflow as tf
     keys = variables_dict.keys()
     keys.sort()
+    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
+            (key[-7:] != "_assign")]
     for i, key in enumerate(keys):
-        if key not in ["input_observation", "y_true", "y_action", "y"]:
-            variables_dict[key] = tf.assign(variables_dict[key], l_theta[i].value)
+        feed_dict = {variables_dict[key + "_ph"]: l_theta[i].value}
+        sess.run(variables_dict[key + "_ph"], feed_dict=feed_dict)
     return variables_dict
 
 def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
@@ -187,6 +219,10 @@ class slave_worker(mp.Process):
             
             if T.value %500 == 0:
                 print(T.value)
+
+            print(self.sess.run(self.variables_dict["bo"]))
+
+            self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
 
             self.variables_dict_minus = read_value_from_theta(l_theta_minus, self.variables_dict_minus, self.sess)
 
@@ -371,6 +407,6 @@ if __name__=="__main__":
     import sys
     args = sys.argv
     if len(args)>1:
-        main(3, T_max=int(args[1]))
+        main(1, T_max=int(args[1]))
     else:
         main(3)
