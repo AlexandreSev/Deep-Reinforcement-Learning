@@ -49,8 +49,7 @@ def create_variable(name="", input_size=4, output_size=2, n_hidden=2, hidden_siz
     
     return variables_dict
 
-def build_model(variables_dict, name="", input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64], 
-                learning_rate=0.001):
+def build_model(variables_dict, name="", input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
     """
     Create a simple model
     """
@@ -64,13 +63,16 @@ def build_model(variables_dict, name="", input_size=4, output_size=2, n_hidden=2
                        variables_dict["b"+str(i+2) + name], name="y"+str(i+2) + name)
     
     y = tf.matmul(y, variables_dict["Wo" + name]) + variables_dict["bo" + name]
-    
+
+    return y
+
+def build_loss(y, variables_dict, learning_rate=0.001):
+    import tensorflow as tf
     loss_list = tf.nn.l2_loss(y * variables_dict["y_action"] - variables_dict["y_true"])
     loss = tf.reduce_mean(loss_list)
     
     train_step = tf.train.RMSPropOptimizer(learning_rate).minimize(loss)
-
-    return y,  loss, train_step
+    return loss, train_step
 
 def best_choice(variables_dict, observation, sess):
     import tensorflow as tf
@@ -152,15 +154,16 @@ class slave_worker(mp.Process):
         self.env = gym.make(env_name)
         
         self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
-        temp = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
+        self.variables_dict["y"] = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
                                  hidden_size=model_option["hidden_size"])
-        self.variables_dict["y"], self.loss, self.train_step = temp
+
+        self.loss, self.train_step = build_loss(self.variables_dict["y"], self.variables_dict)
         
         self.variables_dict_minus = create_variable(name="_minus", n_hidden=model_option["n_hidden"], 
                                                    hidden_size=model_option["hidden_size"])
-        temp = build_model(self.variables_dict_minus, name="_minus", n_hidden=model_option["n_hidden"], 
+        self.variables_dict_minus["y"] = build_model(self.variables_dict_minus, name="_minus", n_hidden=model_option["n_hidden"], 
                                        hidden_size=model_option["hidden_size"])
-        self.variables_dict_minus["y"], self.loss_minus, self.train_step_minus = temp
+        self.loss_minus, self.train_step_minus = build_loss(self.variables_dict_minus["y"], self.variables_dict_minus)
         
         self.sess = tf.Session()
         
@@ -265,56 +268,56 @@ class slave_worker(mp.Process):
 
 # In[7]:
 
-class master_worker(mp.Process):
+# class master_worker(mp.Process):
     
-    def __init__(self, T_max=100, nb_env=10, env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
-                 verbose=False, **kwargs):
-        import tensorflow as tf
+#     def __init__(self, T_max=100, nb_env=10, env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
+#                  verbose=False, **kwargs):
+#         import tensorflow as tf
         
-        super(master_worker, self).__init__(**kwargs)
-        self.T_max = T_max
-        self.env = gym.make(env_name)
-        self.nb_env = nb_env
+#         super(master_worker, self).__init__(**kwargs)
+#         self.T_max = T_max
+#         self.env = gym.make(env_name)
+#         self.nb_env = nb_env
         
-        self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
-        temp = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
-                                 hidden_size=model_option["hidden_size"])
-        self.variables_dict["y"], self.loss, self.train_step = temp
+#         self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
+#         temp = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
+#                                  hidden_size=model_option["hidden_size"])
+#         self.variables_dict["y"], self.loss, self.train_step = temp
         
-        self.sess = tf.Session()
+#         self.sess = tf.Session()
         
-        self.sess.run(tf.global_variables_initializer())
-        
-        
+#         self.sess.run(tf.global_variables_initializer())
         
         
-    def run(self):
-        global T, l_theta, l_theta_minus
-        import tensorflow as tf
         
-        self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
+        
+#     def run(self):
+#         global T, l_theta, l_theta_minus
+#         import tensorflow as tf
+        
+#         self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
 
-        epsilon = 0.01
-        observation = self.env.reset()
+#         epsilon = 0.01
+#         observation = self.env.reset()
 
-        for i in range(self.nb_env):
-            t = 0
-            done = False
-            while t<self.T_max:
-                t += 1
-                self.env.render()
+#         for i in range(self.nb_env):
+#             t = 0
+#             done = False
+#             while t<self.T_max:
+#                 t += 1
+#                 self.env.render()
 
-                action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
+#                 action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
 
-                observation, reward, done, info = self.env.step(action) 
+#                 observation, reward, done, info = self.env.step(action) 
 
-                if done:
-                    print("Environment completed in %s timesteps"%t)
-                    observation = self.env.reset()
-                    t += self.T_max
-            if not done:
-                print("Environment last %s timesteps"%t)
-        return
+#                 if done:
+#                     print("Environment completed in %s timesteps"%t)
+#                     observation = self.env.reset()
+#                     t += self.T_max
+#             if not done:
+#                 print("Environment last %s timesteps"%t)
+#         return
 
 
 # In[8]:
@@ -340,8 +343,8 @@ def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}
             t_init = time.time()
     print("Training completed")
     
-    exemple = master_worker(T_max=T_max, model_option=model_option, env_name=env_name)
-    exemple.run()
+    # exemple = master_worker(T_max=T_max, model_option=model_option, env_name=env_name)
+    # exemple.run()
     
     """model.set_weights(theta.value)
     
@@ -376,4 +379,4 @@ def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}
 
 # In[ ]:
 
-main(1, T_max=100000)
+main(3, T_max=10)
