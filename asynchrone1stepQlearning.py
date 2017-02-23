@@ -260,61 +260,56 @@ class slave_worker(mp.Process):
         return
 
 
-# In[7]:
-
-# class master_worker(mp.Process):
+class master_worker(mp.Process):
     
-#     def __init__(self, T_max=100, nb_env=10, env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
-#                  verbose=False, **kwargs):
-#         import tensorflow as tf
+    def __init__(self, T_max=100, nb_env=10, env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
+                 verbose=False, **kwargs):
+        import tensorflow as tf
         
-#         super(master_worker, self).__init__(**kwargs)
-#         self.T_max = T_max
-#         self.env = gym.make(env_name)
-#         self.nb_env = nb_env
+        super(master_worker, self).__init__(**kwargs)
+        self.T_max = T_max
+        self.env = gym.make(env_name)
+        self.nb_env = nb_env
         
-#         self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
-#         temp = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
-#                                  hidden_size=model_option["hidden_size"])
-#         self.variables_dict["y"], self.loss, self.train_step = temp
-        
-#         self.sess = tf.Session()
-        
-#         self.sess.run(tf.global_variables_initializer())
-        
-        
-        
-        
-#     def run(self):
-#         global T, l_theta, l_theta_minus
-#         import tensorflow as tf
-        
-#         self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
+        self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
+        self.variables_dict["y"] = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
+                                               hidden_size=model_option["hidden_size"])
 
-#         epsilon = 0.01
-#         observation = self.env.reset()
+        self.loss, self.train_step = build_loss(self.variables_dict["y"], self.variables_dict)
+        
+        
+        
+        
+    def run(self):
+        global l_theta
+        import tensorflow as tf
 
-#         for i in range(self.nb_env):
-#             t = 0
-#             done = False
-#             while t<self.T_max:
-#                 t += 1
-#                 self.env.render()
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+        
+        self.variables_dict = read_value_from_theta(l_theta, self.variables_dict, self.sess)
 
-#                 action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
+        epsilon = 0.01
+        observation = self.env.reset()
 
-#                 observation, reward, done, info = self.env.step(action) 
+        for i in range(self.nb_env):
+            t = 0
+            done = False
+            while t<self.T_max:
+                t += 1
+                self.env.render()
 
-#                 if done:
-#                     print("Environment completed in %s timesteps"%t)
-#                     observation = self.env.reset()
-#                     t += self.T_max
-#             if not done:
-#                 print("Environment last %s timesteps"%t)
-#         return
+                action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
 
+                observation, reward, done, info = self.env.step(action) 
 
-# In[8]:
+                if done:
+                    print("Environment completed in %s timesteps"%t)
+                    observation = self.env.reset()
+                    t += self.T_max
+            if not done:
+                print("Environment last %s timesteps"%t)
+        return
 
 def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}, env_name="CartPole-v0"):
     global T, l_theta, l_theta_minus
@@ -337,8 +332,8 @@ def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}
             t_init = time.time()
     print("Training completed")
     
-    # exemple = master_worker(T_max=T_max, model_option=model_option, env_name=env_name)
-    # exemple.run()
+    exemple = master_worker(T_max=T_max, model_option=model_option, env_name=env_name)
+    exemple.run()
     
     """model.set_weights(theta.value)
     
@@ -373,4 +368,11 @@ def main(nb_process, T_max=100,  model_option={"n_hidden":1, "hidden_size":[10]}
 
 # In[ ]:
 
-main(3, T_max=1000)
+if __name__=="__main__":
+    import sys
+    args = sys.argv
+    print(args[1])
+    if len(args)>1:
+        main(3, T_max=int(args[1]))
+    else:
+        main(3)
