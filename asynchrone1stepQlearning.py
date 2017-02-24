@@ -95,10 +95,23 @@ def build_model(variables_dict, name="", input_size=4, output_size=2, n_hidden=2
 
     return y
 
-def build_loss(y, variables_dict, learning_rate=0.001):
+def build_loss(y, variables_dict, learning_rate=0.001, alpha_reg=0.001, beta_reg=0.001):
     import tensorflow as tf
     loss_list = tf.nn.l2_loss(tf.matmul(y, variables_dict["y_action"]) - variables_dict["y_true"])
     loss = tf.reduce_mean(loss_list)
+
+    l1_reg = 0
+    l2_reg = 0
+
+    keys = variables_dict.keys()
+    keys.sort()
+    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
+            (key[-7:] != "_assign")]
+    for key in keys:
+        l1_reg += tf.reduce_sum(tf.abs(variables_dict[key]))
+        l2_reg += tf.nn.l2_loss(variables_dict[key])
+
+    loss += alpha_reg * l1_reg + beta_reg * l2_reg
     
     train_step = tf.train.RMSPropOptimizer(learning_rate).minimize(loss)
     return loss, train_step
@@ -254,8 +267,6 @@ class slave_worker(mp.Process):
 
             self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
             self.variables_dict_minus = read_value_from_theta(self.variables_dict_minus, self.sess)
-
-            # print(self.sess.run(self.variables_dict["Wo"]))
 
             action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess, self.policy)
 
@@ -474,4 +485,4 @@ if __name__=="__main__":
     if len(args)>1:
         main(3, T_max=int(args[1]), model_option={"n_hidden":2, "hidden_size":[128, 64]})
     else:
-        main(3, 50000)
+        main(3, 1000000, model_option={'n_hidden': 2, 'hidden_size': [208, 771]})

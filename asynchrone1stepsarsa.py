@@ -99,6 +99,19 @@ def build_loss(y, variables_dict, learning_rate=0.001):
     import tensorflow as tf
     loss_list = tf.nn.l2_loss(tf.matmul(y, variables_dict["y_action"]) - variables_dict["y_true"])
     loss = tf.reduce_mean(loss_list)
+
+    l1_reg = 0
+    l2_reg = 0
+
+    keys = variables_dict.keys()
+    keys.sort()
+    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
+            (key[-7:] != "_assign")]
+    for key in keys:
+        l1_reg += tf.reduce_sum(tf.abs(variables_dict[key]))
+        l2_reg += tf.nn.l2_loss(variables_dict[key])
+
+    loss += alpha_reg * l1_reg + beta_reg * l2_reg
     
     train_step = tf.train.RMSPropOptimizer(learning_rate).minimize(loss)
     return loss, train_step
