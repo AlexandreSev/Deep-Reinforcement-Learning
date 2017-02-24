@@ -213,8 +213,8 @@ def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
 class slave_worker(mp.Process):
     
     def __init__(self, T_max=100, Itarget=15, Iasyncupdate=10, gamma=0.9, learning_rate=0.001, 
-                   env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
-                   verbose=False, policy=None, **kwargs):
+                   alpha_reg=0.001, beta_reg=0.001, env_name="CartPole-v0",
+                   model_option={"n_hidden":1, "hidden_size":[10]}, verbose=False, policy=None, **kwargs):
         super(slave_worker, self).__init__(**kwargs)
         self.T_max = T_max
         self.Itarget = Itarget
@@ -232,7 +232,9 @@ class slave_worker(mp.Process):
         self.variables_dict["y"] = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
                                                hidden_size=model_option["hidden_size"])
 
-        self.loss, self.train_step = build_loss(self.variables_dict["y"], self.variables_dict)
+        self.loss, self.train_step = build_loss(self.variables_dict["y"], self.variables_dict
+                                                learning_rate=learning_rate, alpha_reg=alpha_reg,
+                                                beta_reg=beta_reg)
         
         self.variables_dict_minus = create_variable(name="_minus", n_hidden=model_option["n_hidden"], 
                                                     hidden_size=model_option["hidden_size"])
@@ -354,8 +356,6 @@ class master_worker(mp.Process):
         self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
         self.variables_dict["y"] = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
                                                hidden_size=model_option["hidden_size"])
-
-        self.loss, self.train_step = build_loss(self.variables_dict["y"], self.variables_dict)
 
     def run(self):
         global l_theta
