@@ -108,7 +108,18 @@ def best_choice(variables_dict, observation, sess):
     feed_dic = {variables_dict["input_observation"]: observation.reshape((1, -1))}
     #print("Je passe")
     reward = sess.run(variables_dict["y"], feed_dict=feed_dic)
-    #print("Je casse")
+    
+    """
+    choice = np.random.uniform(low=0, high=np.sum(reward), size=1)
+    action = 0
+    count = reward[0][0]
+    while count <= choice:
+        action += 1
+        count += reward[0][action]
+    action = min(len(reward) - 1, action)
+    return action, reward[0][action]
+    """
+
     return np.argmax(reward), np.max(reward)
 
 def best_action(variables_dict, observation, sess):
@@ -117,10 +128,13 @@ def best_action(variables_dict, observation, sess):
 def best_reward(variables_dict, observation, sess):
     return best_choice(variables_dict, observation, sess)[1]
 
-def epsilon_greedy_policy(variables_dict, observation, epsilon, env, sess):
+def epsilon_greedy_policy(variables_dict, observation, epsilon, env, sess, policy=None):
     u = np.random.binomial(1, epsilon)
     if u:
-        return env.action_space.sample()
+        if policy is None:
+            return env.action_space.sample()
+        else:
+            return policy()
     else:
         return best_action(variables_dict, observation, sess)
 
@@ -187,7 +201,8 @@ def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
 class slave_worker(mp.Process):
     
     def __init__(self, T_max=100, Itarget=15, Iasyncupdate=10, gamma=0.9, learning_rate=0.001, 
-                   env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, verbose=False, **kwargs):
+                   env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
+                   verbose=False, policy=None, **kwargs):
         super(slave_worker, self).__init__(**kwargs)
         self.T_max = T_max
         self.Itarget = Itarget
@@ -195,6 +210,11 @@ class slave_worker(mp.Process):
         self.gamma = gamma
         self.learning_rate = learning_rate
         self.env = gym.make(env_name)
+
+        if policy is None:
+            self.policy = self.env.action_space.sample
+        else:
+            self.policy = policy
         
         self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
         self.variables_dict["y"] = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
@@ -237,7 +257,7 @@ class slave_worker(mp.Process):
 
             # print(self.sess.run(self.variables_dict["Wo"]))
 
-            action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
+            action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess, self.policy)
 
             observationprime, reward, done, info = self.env.step(action) 
 
@@ -246,10 +266,7 @@ class slave_worker(mp.Process):
             #print("Checkpoint 1")
 
             if done:
-                if t - t_init > 200:
-                    y = 5
-                else:
-                    y = -1
+                y = reward
                 observationprime = self.env.reset()
                 t_init = t + 1
                 nb_env += 1
@@ -365,6 +382,7 @@ class master_worker(mp.Process):
                     observation = self.env.reset()
                     t += self.T_max
             if not done:
+                observation = self.env.reset()
                 print("Environment last %s timesteps"%t)
 
         print("Training completed")
@@ -385,8 +403,18 @@ class master_worker(mp.Process):
                     observation = self.env.reset()
                     t += self.T_max
             if not done:
+                observation = self.env.reset()
                 print("Environment last %s timesteps"%t)
         return
+
+def policy_template(x=0.5):
+    return lambda :np.random.binomial(x, 1)
+
+def create_2D_policies(n):
+    policies = []
+    for i in range(n):
+        policies.append(policy_template(1./n * (i+1)))
+    return policies
 
 def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]}, env_name="CartPole-v0"):
     global T, l_theta, l_theta_minus
@@ -396,9 +424,10 @@ def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]
     l_theta_minus = initialise(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
     
     jobs = []
+    policies = create_2D_policies(nb_process)
     for i in range(nb_process):
         print("Process %s starting"%i)
-        job = slave_worker(T_max=T_max, model_option=model_option, env_name=env_name)
+        job = slave_worker(T_max=T_max, model_option=model_option, env_name=env_name, policy=policies[i])
         job.start()
         jobs.append(job)
     
@@ -443,6 +472,6 @@ if __name__=="__main__":
     import sys
     args = sys.argv
     if len(args)>1:
-        main(3, T_max=int(args[1]))
+        main(3, T_max=int(args[1]), model_option={"n_hidden":2, "hidden_size":[128, 64]})
     else:
         main(3, 50000)
