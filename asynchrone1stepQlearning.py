@@ -73,8 +73,8 @@ def create_variable(name="", input_size=4, output_size=2, n_hidden=2, hidden_siz
 
     variables_dict["input_observation"] = tf.placeholder(tf.float32, shape=[None, input_size], name="i_observation" + name)
     
-    variables_dict["y_true"] = tf.placeholder(tf.float32, shape=[None, output_size], name="y_true" + name)
-    variables_dict["y_action"] = tf.placeholder(tf.float32, shape=[None, output_size], name="action" + name)
+    variables_dict["y_true"] = tf.placeholder(tf.float32, shape=[None, 1], name="y_true" + name)
+    variables_dict["y_action"] = tf.placeholder(tf.float32, shape=[output_size, None], name="action" + name)
     
     return variables_dict
 
@@ -97,7 +97,7 @@ def build_model(variables_dict, name="", input_size=4, output_size=2, n_hidden=2
 
 def build_loss(y, variables_dict, learning_rate=0.001):
     import tensorflow as tf
-    loss_list = tf.nn.l2_loss(y * variables_dict["y_action"] - variables_dict["y_true"])
+    loss_list = tf.nn.l2_loss(tf.matmul(y, variables_dict["y_action"]) - variables_dict["y_true"])
     loss = tf.reduce_mean(loss_list)
     
     train_step = tf.train.RMSPropOptimizer(learning_rate).minimize(loss)
@@ -246,7 +246,10 @@ class slave_worker(mp.Process):
             #print("Checkpoint 1")
 
             if done:
-                y = reward
+                if t - t_init > 200:
+                    y = 5
+                else:
+                    y = -1
                 observationprime = self.env.reset()
                 t_init = t + 1
                 nb_env += 1
@@ -255,7 +258,8 @@ class slave_worker(mp.Process):
                 y = reward + self.gamma * best_reward(self.variables_dict_minus, observationprime, self.sess)
                 #print("Je casse")
             
-            #print("Checkpoint 2")
+            if False:
+                print(y)
             
             if firstiter:
                 firstiter=False
@@ -282,19 +286,16 @@ class slave_worker(mp.Process):
             #print("Checkpoint 5")
             
             if t %self.Iasyncupdate == 0:
+               
+                action_batch_multiplier = np.eye(2)[action_batch].T
                 
-                action_batch_arr = np.array(action_batch)
-                action_batch_multiplier = np.eye(2)[action_batch_arr]
-                
-                sampling = np.random.randint(0, len(y_batch), 64)
-                
-                y_batch_arr = np.array(y_batch).reshape((-1, 1)) * action_batch_multiplier
+                y_batch_arr = np.array(y_batch).reshape((-1, 1))
 
                 self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
                 
-                feed_dict = {self.variables_dict["input_observation"]: observation_batch[sampling, :],
-                             self.variables_dict["y_true"]: y_batch_arr[sampling, :], 
-                             self.variables_dict["y_action"]: action_batch_multiplier[sampling, :]}
+                feed_dict = {self.variables_dict["input_observation"]: observation_batch,
+                             self.variables_dict["y_true"]: y_batch_arr, 
+                             self.variables_dict["y_action"]: action_batch_multiplier}
                 self.sess.run(self.train_step, feed_dict=feed_dict)
 
 
@@ -338,30 +339,33 @@ class master_worker(mp.Process):
         self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
         saver.save(self.sess, './ptb_rnnlm.weights')
 
-        epsilon = 0.01
+        epsilon = 0.0
         observation = self.env.reset()
 
         t_init = time.time()
         while T.value<self.T_max:
             #print(l_theta[-1])
             if time.time() - t_init > 10:
+                print("T = %s"%T.value)
                 t_init = time.time()
 
-                t = 0
-                while t<self.t_max:
-                    t += 1
-                    self.env.render()
+            self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
 
-                    action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
+            t = 0
+            while t<self.t_max:
+                t += 1
+                self.env.render()
 
-                    observation, reward, done, info = self.env.step(action) 
+                action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
 
-                    if done:
-                        print("Environment completed in %s timesteps"%t)
-                        observation = self.env.reset()
-                        t += self.T_max
-                if not done:
-                    print("Environment last %s timesteps"%t)
+                observation, reward, done, info = self.env.step(action) 
+
+                if done:
+                    #print("Environment completed in %s timesteps"%t)
+                    observation = self.env.reset()
+                    t += self.T_max
+            if not done:
+                print("Environment last %s timesteps"%t)
 
         print("Training completed")
 
