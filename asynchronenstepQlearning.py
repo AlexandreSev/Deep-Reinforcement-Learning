@@ -13,8 +13,6 @@ import multiprocessing as mp
 import ctypes
 
 
-# In[2]:
-
 def weight_variable(shape, name=None):
     import tensorflow as tf
     initial = tf.truncated_normal(shape, stddev=0.1)
@@ -24,9 +22,6 @@ def bias_variable(shape, name=None):
     import tensorflow as tf
     initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial, name=name)
-
-
-# In[3]:
 
 def create_variable(name="", input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
     import tensorflow as tf
@@ -109,18 +104,17 @@ def best_choice(variables_dict, observation, sess):
     #print("Je passe")
     reward = sess.run(variables_dict["y"], feed_dict=feed_dic)
     
-    """
+    reward = [max(i, 0) for i in reward[0]]
     choice = np.random.uniform(low=0, high=np.sum(reward), size=1)
     action = 0
-    count = reward[0][0]
-    while count <= choice:
+    count = reward[0]
+    while (count <= choice) & (action < len(reward) - 1):
         action += 1
-        count += reward[0][action]
-    action = min(len(reward) - 1, action)
-    return action, reward[0][action]
-    """
+        count += reward[action]
+    return action, reward[action]
+    
 
-    return np.argmax(reward), np.max(reward)
+    #return np.argmax(reward), np.max(reward)
 
 def best_action(variables_dict, observation, sess):
     return best_choice(variables_dict, observation, sess)[0]
@@ -134,7 +128,8 @@ def epsilon_greedy_policy(variables_dict, observation, epsilon, env, sess, polic
         if policy is None:
             return env.action_space.sample()
         else:
-            return policy()
+            action = policy()
+            return action
     else:
         return best_action(variables_dict, observation, sess)
 
@@ -211,6 +206,7 @@ class slave_worker(mp.Process):
         self.gamma = gamma
         self.learning_rate = learning_rate
         self.env = gym.make(env_name)
+        self.verbose = verbose
 
         if policy is None:
             self.policy = self.env.action_space.sample
@@ -248,7 +244,7 @@ class slave_worker(mp.Process):
         observation = self.env.reset()
 
         while T.value<self.T_max:
-            
+
             # if T.value %500 == 0:
             #     print(T.value)
             t = 0
@@ -265,6 +261,10 @@ class slave_worker(mp.Process):
 
             while (not done) & (t-t_init<=self.t_max):
             
+                if self.verbose:
+                    self.env.render()
+                    if T.value%5000 == 0:
+                        print("T = %s"%T.value)
 
                 self.variables_dict_minus = read_value_from_theta(self.variables_dict_minus, self.sess)
 
@@ -307,11 +307,14 @@ class slave_worker(mp.Process):
             
             y_batch_arr = np.array(true_reward).reshape((-1, 1))
 
+            shuffle = range(len(y_batch_arr))
+            np.random.shuffle(shuffle)
+            
             self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
             
-            feed_dict = {self.variables_dict["input_observation"]: observation_batch[:-1, :],
-                         self.variables_dict["y_true"]: y_batch_arr, 
-                         self.variables_dict["y_action"]: action_batch_multiplier}
+            feed_dict = {self.variables_dict["input_observation"]: observation_batch[:-1, :][shuffle, :],
+                         self.variables_dict["y_true"]: y_batch_arr[shuffle, :], 
+                         self.variables_dict["y_action"]: action_batch_multiplier[:, shuffle]}
             self.sess.run(self.train_step, feed_dict=feed_dict)
 
 
@@ -406,12 +409,12 @@ class master_worker(mp.Process):
         return
 
 def policy_template(x=0.5):
-    return lambda :np.random.binomial(x, 1)
+    return lambda :np.random.binomial(1, x)
 
 def create_2D_policies(n):
     policies = []
     for i in range(n):
-        policies.append(policy_template(1./n * (i+1)))
+        policies.append(policy_template(1./(n+1) * (i+1)))
     return policies
 
 def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]}, env_name="CartPole-v0"):
@@ -425,15 +428,20 @@ def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]
     policies = create_2D_policies(nb_process)
     for i in range(nb_process):
         print("Process %s starting"%i)
-        job = slave_worker(T_max=T_max, model_option=model_option, env_name=env_name, policy=policies[i])
+        job = slave_worker(T_max=T_max, model_option=model_option, env_name=env_name, 
+            policy=policies[i], verbose=(i==5))
         job.start()
         jobs.append(job)
+    
+    #for job in jobs:
+    #    job.join()
     
     exemple = master_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name)
     exemple.start()
     exemple.join()
     
-    """model.set_weights(theta.value)
+    """
+    model.set_weights(theta.value)
     
     env = gym.make(env_name)
     observation = env.reset()
@@ -469,7 +477,7 @@ def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]
 if __name__=="__main__":
     import sys
     args = sys.argv
-    if len(args)>1:
-        main(3, T_max=int(args[1]), model_option={"n_hidden":2, "hidden_size":[128, 64]})
+    if len(args)>2:
+        main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[64, 32]})
     else:
         main(3, 50000)

@@ -419,7 +419,7 @@ class master_worker(mp.Process):
         return
 
 def policy_template(x=0.5):
-    return lambda :np.random.binomial(x, 1)
+    return lambda :np.random.binomial(1, x)
 
 def create_2D_policies(n):
     policies = []
