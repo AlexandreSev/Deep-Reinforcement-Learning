@@ -213,8 +213,8 @@ def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
 
 class slave_worker(mp.Process):
     
-    def __init__(self, T_max=100, Itarget=15, Iasyncupdate=10, gamma=0.9, learning_rate=0.001,
-                   alpha_reg=0.001, beta_reg=0.001, env_name="CartPole-v0",
+    def __init__(self, T_max=100, Itarget=15, Iasyncupdate=10, gamma=0.99, learning_rate=0.001,
+                   alpha_reg=0, beta_reg=0.01, env_name="CartPole-v0",
                    model_option={"n_hidden":1, "hidden_size":[10]}, verbose=False, policy=None, **kwargs):
         super(slave_worker, self).__init__(**kwargs)
         self.T_max = T_max
@@ -254,6 +254,7 @@ class slave_worker(mp.Process):
         self.variables_dict_minus = read_value_from_theta_minus(self.variables_dict_minus, self.sess)
 
         epsilon = 0.9
+        lr_decay = 0.99
         t = 0
         x_batch = 0
         y_batch = []
@@ -327,7 +328,7 @@ class slave_worker(mp.Process):
                              self.variables_dict["y_true"]: y_batch_arr, 
                              self.variables_dict["y_action"]: action_batch_multiplier}
                 self.sess.run(self.train_step, feed_dict=feed_dict)
-
+                self.learning_rate *= lr_decay
 
                 l_theta = assign_value_to_theta(self.variables_dict, self.sess)
 
