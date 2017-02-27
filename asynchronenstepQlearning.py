@@ -7,7 +7,7 @@ import gym
 import time
 
 import numpy as np
-np.random.seed(5)
+np.random.seed(2)
 
 import multiprocessing as mp
 import ctypes
@@ -364,14 +364,17 @@ class master_worker(mp.Process):
         self.history = [0 for i in range(200)]
         self.goal = 195
         self.max_mean = 0
+        self.current_mean = 0
+        self.last_T = 0
 
     def add_history(self, reward):
         self.history = self.history[1:]
         self.history.append(reward)
         
     def stoping_criteria(self):
-        if np.mean(self.history)> self.max_mean:
-            self.max_mean = np.mean(self.history)
+        self.current_mean = np.mean(self.history)
+        if self.current_mean > self.max_mean:
+            self.max_mean = self.current_mean
         if (np.mean(self.history)<self.goal) :
             return False
         else:
@@ -397,9 +400,8 @@ class master_worker(mp.Process):
             if time.time() - t_init > 10:
                 print("T = %s"%T.value)
                 print("Max mean = %s"%self.max_mean)
+                print("Current mean = %s"%self.current_mean)
                 t_init = time.time()
-
-            self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
 
             t = 0
             while t<self.t_max:
@@ -415,21 +417,25 @@ class master_worker(mp.Process):
                 observation, reward, done, info = self.env.step(action) 
 
                 if done:
-                    #print("Environment completed in %s timesteps"%t)
+                    print("Environment completed in %s timesteps"%t)
                     observation = self.env.reset()
                     self.add_history(t)
                     t += self.T_max
             if not done:
                 observation = self.env.reset()
                 print("Environment last %s timesteps"%t)
+                self.add_history(t)
+                self.last_T = T.value
+            else:
+                self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
 
         print("Training completed")
         saver.save(self.sess, './end_training.weights')
-        print("T final = %s"%T.value)
+        print("T final = %s"%self.last_T)
         T.value += self.T_max
 
         observation = self.env.reset()
-        self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
+        #self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
 
         for i in range(self.nb_env):
             t = 0
@@ -461,6 +467,10 @@ def create_2D_policies(n):
     return policies
 
 def create_list_epsilon(n):
+    e_list = [1, 0.5]
+    p = [0.5, 0.5]
+    return np.random.choice(e_list, n, p=p)
+
     e_max = 1
     e_min = 0.01
     return [e_min + i * (e_max-e_min) / n + (e_max-e_min) / (2*n) for i in range(n)]
@@ -527,6 +537,6 @@ if __name__=="__main__":
     import sys
     args = sys.argv
     if len(args)>2:
-        main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":1, "hidden_size":[16]})
+        main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]})
     else:
         main(3, 50000)
