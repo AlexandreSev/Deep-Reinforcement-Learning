@@ -1,0 +1,157 @@
+# coding: utf-8
+import time
+import gym
+import numpy as np
+from qnn import QNeuralNetwork
+from utils import epsilon_greedy_policy
+
+class tester_worker(mp.Process):
+    """
+    Worker wich will test if the environment is solved. It will also update theta minus.
+    """
+    
+    def __init__(self, T_max=100000, t_max=200, env_name="CartPole-v0", 
+                model_option={"n_hidden":1, "hidden_size":[10]}, n_sec_print=10, 
+                goal=195, len_history=100, Itarget=15, render=False, **kwargs):
+        """
+        Parameters:
+            T_max: maximum number of iterations
+            t_max: maximum number of timesteps per environment
+            env_name: name of gym environnment
+            model_option: dictionary, must have two keys. n_hidden defines the number of hidden layers,
+                        hidden_size the size of them in the QNeuralNetwork used to estimate the reward
+            n_sec_print: Number of seconds between two prints
+            goal: Value of reward to considered the game as solved
+            len_history: number of episodes to test the algorithm
+            Itarget: number of iterations between two updates of theta minus
+            render: If True, environment will be rendered
+            kwargs: args of multiprocessing.Process
+        """
+        super(master_worker, self).__init__(**kwargs)
+        self.T_max = T_max
+        self.t_max = t_max
+        self.env = gym.make(env_name)
+        self.output_size = self.env.action_space.n
+        self.input_size = self.env.observation_space.shape[0]
+        self.nb_env = 0
+        self.Itarget = Itarget
+        self.render=render
+        
+        self.qnn = qnn.QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
+                n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
+                learning_rate=learning_rate, alpha_reg=alpha_reg, beta_reg=beta_reg)
+
+        self.history = [-1000 for i in range(len_history)]
+        self.goal = goal
+        self.max_mean = 0
+        self.current_mean = 0
+        self.last_T = 0
+        self.n_sec_print = n_sec_print
+
+    def add_history(self, reward):
+        """
+        Add a value to the history and remove the last one
+        Parameters:
+            reward: value to put in history
+        """
+        self.history = self.history[1:]
+        self.history.append(reward)
+        
+    def stoping_criteria(self):
+        """
+        Check from the history if the game is solved 
+        """
+        self.current_mean = np.mean(self.history)
+        if self.current_mean > self.max_mean:
+            self.max_mean = self.current_mean
+        if (np.mean(self.history)<self.goal) :
+            return False
+        else:
+            return True
+
+    def run(self):
+        """
+        Launch the worker
+        """
+        global l_theta, l_theta_minus
+        import tensorflow as tf
+        t_taken = time.time()
+
+        self.qnn.initialisation()
+
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver()
+
+        self.qnn.read_value_from_theta(self.sess)
+        saver.save(self.sess, './ptb_rnnlm.weights')
+
+        observation = self.env.reset()
+
+        t_init = time.time()
+        while (T.value<self.T_max) & (not self.stoping_criteria()):
+            
+            if time.time() - t_init > self.n_sec_print:
+                print("T = %s"%T.value)
+                print("Max mean = %s"%self.max_mean)
+                print("Current mean = %s"%self.current_mean)
+                t_init = time.time()
+
+            t = 0
+            self.nb_env += 1
+            current_reward = 0
+            while t<self.t_max:
+
+                if self.render:
+                    self.env.render()
+
+                t += 1
+                if T.value %self.Itarget == 0:
+                    for i, theta_minus in enumerate(l_theta_minus):
+                        l_theta_minus[i] = l_theta[i]
+
+                action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
+                                               self.sess, self.policy)
+
+                observation, reward, done, info = self.env.step(action) 
+
+                current_reward += reward
+
+                if done:
+                    observation = self.env.reset()
+                    self.add_history(current_reward)
+                    t += self.T_max
+            if not done:
+                observation = self.env.reset()
+                self.add_history(current_reward)
+                self.last_T = T.value
+            self.qnn.read_value_from_theta(self.sess)
+
+        print("Training completed")
+        saver.save(self.sess, './end_training.weights')
+        print("T final = %s"%self.last_T)
+        print("Done in %s environments"%(self.nb_env-100))
+        print("Done in %s seconds"%(time.time() - t_taken))
+        T.value += self.T_max
+
+        observation = self.env.reset()
+
+        for i in range(10):
+            t = 0
+            done = False
+            while t<self.t_max:
+                t += 1
+                self.env.render()
+
+                action = best_action(self.variables_dict, observation, self.sess)
+
+                observation, reward, done, info = self.env.step(action) 
+
+                if done:
+                    print("Environment completed in %s timesteps"%t)
+                    observation = self.env.reset()
+                    t += self.t_max
+            if not done:
+                observation = self.env.reset()
+                print("Environment last %s timesteps"%t)
+        return

@@ -221,7 +221,7 @@ class QNeuralNetwork():
 	    for i, key in enumerate(keys):
 	        l_theta[i] = sess.run(self.variables[key])
 	    
-	def read_value_from_theta(self., sess):
+	def read_value_from_theta(self, sess):
 		"""
 		Assign the value of theta to the weights of the NN
 		Parameters: 
