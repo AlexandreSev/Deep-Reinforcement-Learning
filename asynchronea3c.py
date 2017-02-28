@@ -156,8 +156,8 @@ def compute_gradients(loss_policy, loss_vf, variables_dict):
     grads = {}
     
     keys = variables_dict.keys()
-    keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
-            (key[-7:] != "_assign")]
+    keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & ("ph" not in key) & \
+            ("assign" not in key)]
     common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
     policy_keys = [key for key in keys if "policy" in key]
     vf_keys = [key for key in keys if "vf" in key]
@@ -256,11 +256,13 @@ def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
     for i in range(n_hidden - 1):
         shapes.append((hidden_size[i], hidden_size[i+1]))
     shapes.append((hidden_size[-1], output_size))
-    
+    shapes.append((hidden_size[-1], 1))
+
     shapes.append((1, hidden_size[0]))
     for i in range(n_hidden - 1):
         shapes.append((1, hidden_size[i+1]))
     shapes.append((1, output_size))
+    shapes.append((1, 1))
     
     for i, shape in enumerate(shapes):
         l_theta.append(np.random.uniform(low=-0.01, high=0.01, size=shape))
@@ -273,14 +275,12 @@ def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
 
 class slave_worker(mp.Process):
     
-    def __init__(self, T_max=100, Itarget=15, Iasyncupdate=10, gamma=0.9, learning_rate=0.001,
-                   alpha_reg=0, beta_reg=0.01, env_name="CartPole-v0",
-                   model_option={"n_hidden":1, "hidden_size":[10]}, 
+    def __init__(self, T_max=100, t_max=5, gamma=0.9, learning_rate=0.001, 
+                   env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                    verbose=False, policy=None, epsilon_ini=0.9, **kwargs):
         super(slave_worker, self).__init__(**kwargs)
         self.T_max = T_max
-        self.Itarget = Itarget
-        self.Iasyncupdate = Iasyncupdate
+        self.t_max = t_max
         self.gamma = gamma
         self.learning_rate = learning_rate
         self.env = gym.make(env_name)
@@ -297,7 +297,7 @@ class slave_worker(mp.Process):
                                                                                     n_hidden=model_option["n_hidden"], 
                                                                                     hidden_size=model_option["hidden_size"])
         self.loss_policy, self.loss_vf = build_loss(self.variables_dict["values"], self.variables_dict["actions"],
-                                                    self.variables_dict, alpha_reg=alpha_reg, beta_reg=beta_reg)
+                                                    self.variables_dict)
         self.gradients = compute_gradients(self.loss_policy, self.loss_vf, self.variables_dict)
         self.train_step = build_train_step(self.variables_dict, learning_rate=learning_rate)
             
@@ -332,8 +332,8 @@ class slave_worker(mp.Process):
 
             d_theta = {}
             keys = self.variables_dict.keys()
-            keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
-                    (key[-7:] != "_assign")]
+            keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & ("ph" not in key) & \
+                    ("assign" not in key)]
             common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
             policy_keys = [key for key in keys if "policy" in key]
             vf_keys = [key for key in keys if "vf" in key]
@@ -382,20 +382,18 @@ class slave_worker(mp.Process):
                 R = 0
             else:
                 R = self.sess.run(self.variables_dict["values"],
-                    feed_dict={self.variables_dict["input_observation"]: observation.reshape((1, -1))})
-
+                    feed_dict={self.variables_dict["input_observation"]: observation.reshape((1, -1))})[0,0]
+            
             action_batch.reverse()
             for i in range(t - 1, t_init - 1, -1):
                 R = reward_batch[i] + self.gamma * R
-                feed_dict = {self.variables_dict["input_observation"]: observation_batch[i,:],
-                            self.variables_dict["y_true"]: np.array(R).reshape((-1, 1)), 
-                            self.variables_dict["y_action"]: np.eye(2)[action_batch[i]].T}
+                feed_dict = {self.variables_dict["input_observation"]: observation_batch[i,:].reshape((1, -1)),
+                             self.variables_dict["y_true"]: np.array([[R]]), 
+                             self.variables_dict["y_action"]: np.eye(2)[[action_batch[i]]].T}
                 for key in d_theta.keys():
                     d_theta[key] += self.sess.run(self.gradients[key], feed_dict=feed_dict)
             
-            feed_dict = {}
-            for key in d_theta.keys():
-                feed_dict[self.variables_dict[keys]] = d_theta[key]
+            feed_dict = {self.variables_dict[key]: d_theta[key] for key in d_theta.keys()}
             self.sess.run(self.train_step, feed_dict=feed_dict)
 
             l_theta = assign_value_to_theta(self.variables_dict, self.sess)
@@ -405,26 +403,28 @@ class slave_worker(mp.Process):
 
 class master_worker(mp.Process):
     
-    def __init__(self, T_max=1000, t_max=200, Itarget=15, nb_env=10, env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
-                 verbose=False, **kwargs):
+    def __init__(self, T_max=1000, t_max=200, env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
+                 verbose=False, n_sec_print=10, goal=195, len_history=100, Itarget=15, **kwargs):
         import tensorflow as tf
         
         super(master_worker, self).__init__(**kwargs)
         self.T_max = T_max
         self.t_max = t_max
         self.env = gym.make(env_name)
-        self.nb_env = nb_env
+        self.nb_env = 0
         self.Itarget = Itarget
         
         self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
-        self.variables_dict["y"] = build_model(self.variables_dict, n_hidden=model_option["n_hidden"], 
-                                               hidden_size=model_option["hidden_size"])
+        self.variables_dict["actions"], self.variables_dict["values"] = build_model(self.variables_dict,
+                                                                                    n_hidden=model_option["n_hidden"], 
+                                                                                    hidden_size=model_option["hidden_size"])
 
-        self.history = [0 for i in range(200)]
-        self.goal = 195
+        self.history = [0 for i in range(len_history)]
+        self.goal = goal
         self.max_mean = 0
         self.current_mean = 0
         self.last_T = 0
+        self.n_sec_print = n_sec_print
 
     def add_history(self, reward):
         self.history = self.history[1:]
@@ -440,8 +440,9 @@ class master_worker(mp.Process):
             return True
 
     def run(self):
-        global l_theta, l_theta_minus
+        global l_theta
         import tensorflow as tf
+        t_taken = time.time()
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
@@ -456,33 +457,29 @@ class master_worker(mp.Process):
         t_init = time.time()
         while (T.value<self.T_max) & (not self.stoping_criteria()):
             #print(l_theta[-1])
-            if time.time() - t_init > 10:
+            if time.time() - t_init > self.n_sec_print:
                 print("T = %s"%T.value)
                 print("Max mean = %s"%self.max_mean)
                 print("Current mean = %s"%self.current_mean)
                 t_init = time.time()
 
             t = 0
+            self.nb_env += 1
             while t<self.t_max:
 
-                if T.value %self.Itarget == 0:
-                    for i, theta_minus in enumerate(l_theta_minus):
-                        l_theta_minus[i] = l_theta[i]
                 t += 1
-                #self.env.render()
-
                 action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess)
 
                 observation, reward, done, info = self.env.step(action) 
 
                 if done:
-                    print("Environment completed in %s timesteps"%t)
+                    #print("Environment completed in %s timesteps"%t)
                     observation = self.env.reset()
                     self.add_history(t)
                     t += self.T_max
             if not done:
                 observation = self.env.reset()
-                print("Environment last %s timesteps"%t)
+                #print("Environment last %s timesteps"%t)
                 self.add_history(t)
                 self.last_T = T.value
             else:
@@ -491,12 +488,14 @@ class master_worker(mp.Process):
         print("Training completed")
         saver.save(self.sess, './end_training.weights')
         print("T final = %s"%self.last_T)
+        print("Done in %s environments"%(self.nb_env-100))
+        print("Done in %s seconds"%(time.time() - t_taken))
         T.value += self.T_max
 
         observation = self.env.reset()
         #self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
 
-        for i in range(self.nb_env):
+        for i in range(10):
             t = 0
             done = False
             while t<self.t_max:
@@ -534,63 +533,40 @@ def create_list_epsilon(n):
     e_min = 0.01
     return [e_min + i * (e_max-e_min) / n + (e_max-e_min) / (2*n) for i in range(n)]
 
-def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]}, env_name="CartPole-v0"):
-    global T, l_theta, l_theta_minus
+def main(nb_process, T_max=5000,  model_option={"n_hidden":1, "hidden_size":[10]}, env_name="CartPole-v0",
+         t_max=5, Itarget=15, gamma=0.9, learning_rate=0.001, verbose=False, policy=False, 
+         epsilon_ini=0.9, several_eps=True, n_sec_print=10, master=False, goal=195, len_history=100):
+    global T, l_theta
+
     T = mp.Value('i', 0)
     
     l_theta = initialise(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
-    l_theta_minus = initialise(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
     
     jobs = []
-    policies = create_2D_policies(nb_process)
-    epsilons = create_list_epsilon(nb_process)
+    if policy:
+        policies = create_2D_policies(nb_process)
+    else:
+        policies = [None for i in range(nb_process)]
+    if several_eps:
+        epsilons = create_list_epsilon(nb_process)
+    else:
+        epsilons = [epsilon_ini for i in range(nb_process)]
+    verboses = [False for i in range(nb_process)]
+    if master:
+        verboses[0] = True
     for i in range(nb_process):
         print("Process %s starting"%i)
         job = slave_worker(T_max=T_max, model_option=model_option, env_name=env_name, 
-            policy=None, verbose=(i==15), epsilon_ini = epsilons[i])
+            policy=policies[i], epsilon_ini=epsilons[i], t_max=t_max, gamma=gamma, 
+            learning_rate=learning_rate, verbose=verboses[i])
         job.start()
         jobs.append(job)
     
-    # for job in jobs:
-    #    job.join()
     
-    exemple = master_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name)
+    exemple = master_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name, 
+                            n_sec_print=n_sec_print, goal=goal, len_history=len_history, Itarget=Itarget)
     exemple.start()
     exemple.join()
-    
-    """
-    model.set_weights(theta.value)
-    
-    env = gym.make(env_name)
-    observation = env.reset()
-
-    for t in range(100000):
-        env.render()
-        #print(model.predict(np.append(observation, [0])), model.predict(np.append(observation, [1])))
-        action = epsilon_greedy_policy(model, observation, 0.01)
-        #action = weighted_choice(model, observation)[0]
-        #print("NEXT")
-        observation, reward, done, info = env.step(action)
-        if done:
-            print("Episode finished after {} timesteps".format(t+1))
-            break
-    """
-
-
-# global T, theta, theta_minus
-# model_option={"n_hidden":1, "hidden_size":[10]}
-# env_name="CartPole-v0"
-# T = mp.Value('i', 0)
-# 
-# model = build_model(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
-# theta = mp.Array(ctypes.c_double, len(model.get_weights()))
-# theta.value = model.get_weights()
-# theta_minus  = mp.Array(ctypes.c_double, len(theta.value))
-# theta_minus.value = theta.value
-# 
-# theta.value
-
-# In[ ]:
 
 if __name__=="__main__":
     import sys
