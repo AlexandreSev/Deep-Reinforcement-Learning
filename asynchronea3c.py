@@ -29,64 +29,79 @@ def create_variable(name="", input_size=4, output_size=2, n_hidden=2, hidden_siz
     variables_dict = {}
     
     variables_dict["W1" + name] = weight_variable([input_size, hidden_size[0]], name="W1" + name)
-    variables_dict["W1" + name + "_ph"] = tf.placeholder(tf.float32, shape=[input_size, hidden_size[0]], 
-        name="W1"+name+"_ph")
+    variables_dict["W1" + name + "_assign_ph"] = tf.placeholder(tf.float32, shape=[input_size, hidden_size[0]], 
+        name="W1"+name+"_assign_ph")
     variables_dict["W1" + name + "_assign"] = tf.assign(variables_dict["W1" + name], 
-        variables_dict["W1" + name + "_ph"])
-    variables_dict["W1_grad" + name] = weight_variable([input_size, hidden_size[0]], name="W1_grad" + name)
+        variables_dict["W1" + name + "_assign_ph"])
+    variables_dict["W1_grad_ph_policy" + name] = tf.placeholder(tf.float32, shape=[input_size, hidden_size[0]],
+        name="W1_grad_ph_policy" + name)
+    variables_dict["W1_grad_ph_vf" + name] = tf.placeholder(tf.float32, shape=[input_size, hidden_size[0]],
+        name="W1_grad_ph_vf" + name)
     
     variables_dict["b1" + name] = bias_variable((1, hidden_size[0]), name="b1" + name)
-    variables_dict["b1" + name + "_ph"] = tf.placeholder(tf.float32, shape=[1, hidden_size[0]], 
-        name="b1"+name+"_ph")
+    variables_dict["b1" + name + "_assign_ph"] = tf.placeholder(tf.float32, shape=[1, hidden_size[0]], 
+        name="b1"+name+"_assign_ph")
     variables_dict["b1" + name + "_assign"] = tf.assign(variables_dict["b1" + name], 
-        variables_dict["b1" + name + "_ph"])
-    variables_dict["b1_grad" + name] = bias_variable((1, hidden_size[0]), name="b1_grad" + name)
+        variables_dict["b1" + name + "_assign_ph"])
+    variables_dict["b1_grad_ph_policy" + name] = tf.placeholder(tf.float32, shape=[1, hidden_size[0]],
+        name="b1_grad_ph_policy" + name)
+    variables_dict["b1_grad_ph_vf" + name] = tf.placeholder(tf.float32, shape=[1, hidden_size[0]],
+        name="b1_grad_ph_vf" + name)
 
     for i in range(n_hidden-1):
         variables_dict["W"+str(i+2) + name] = weight_variable([hidden_size[i], hidden_size[i+1]], 
             name="W"+str(i+2) + name)
-        variables_dict["W"+str(i+2) + name + "_ph"] = tf.placeholder(tf.float32, 
-            shape=[hidden_size[i], hidden_size[i+1]], name="W"+str(i+2)+name+"_ph")
+        variables_dict["W"+str(i+2) + name + "_assign_ph"] = tf.placeholder(tf.float32, 
+            shape=[hidden_size[i], hidden_size[i+1]], name="W"+str(i+2)+name+"_assign_ph")
         variables_dict["W"+str(i+2) + name + "_assign"] = tf.assign(variables_dict["W"+str(i+2) + name], 
-            variables_dict["W"+str(i+2) + name + "_ph"])
-        variables_dict["W"+str(i+2) + "_grad" + name] = weight_variable([hidden_size[i], hidden_size[i+1]], 
-            name="W"+str(i+2) + "_grad" + name)
+            variables_dict["W"+str(i+2) + name + "_assign_ph"])
+        variables_dict["W"+str(i+2) + "_grad_ph_policy" + name] = tf.placeholder(tf.float32, shape=[hidden_size[i], hidden_size[i+1]], 
+            name="W"+str(i+2) + "_grad_ph_policy" + name)
+        variables_dict["W"+str(i+2) + "_grad_ph_vf" + name] = tf.placeholder(tf.float32, shape=[hidden_size[i], hidden_size[i+1]], 
+            name="W"+str(i+2) + "_grad_ph_vf" + name)
         
 
         variables_dict["b"+str(i+2) + name] = bias_variable((1, hidden_size[i+1]), name="b"+str(i+2) + name)
-        variables_dict["b"+str(i+2) + name + "_ph"] = tf.placeholder(tf.float32, 
-            shape=[1, hidden_size[i+1]], name="b"+str(i+2)+name+"_ph")
+        variables_dict["b"+str(i+2) + name + "_assign_ph"] = tf.placeholder(tf.float32, 
+            shape=[1, hidden_size[i+1]], name="b"+str(i+2)+name+"_assign_ph")
         variables_dict["b"+str(i+2) + name + "_assign"] = tf.assign(variables_dict["b"+str(i+2) + name], 
-            variables_dict["b"+str(i+2) + name + "_ph"])
-        variables_dict["b"+str(i+2) + "_grad" + name] = bias_variable((1, hidden_size[i+1]), name="b"+str(i+2) + "_grad" + name)
+            variables_dict["b"+str(i+2) + name + "_assign_ph"])
+        variables_dict["b"+str(i+2) + "_grad_ph_policy" + name] = tf.placeholder(tf.float32, shape=[1, hidden_size[i+1]],
+            name="b"+str(i+2) + "_grad_ph_policy" + name)
+        variables_dict["b"+str(i+2) + "_grad_ph_vf" + name] = tf.placeholder(tf.float32, shape=[1, hidden_size[i+1]],
+            name="b"+str(i+2) + "_grad_ph_vf" + name)
 
     variables_dict["Wo_policy" + name] = weight_variable([hidden_size[-1], output_size], name="Wo_policy" + name)
-    variables_dict["Wo_policy" + name + "_ph"] = tf.placeholder(tf.float32, shape=[hidden_size[-1], output_size], 
-        name="Wo_policy"+name+"_ph")
+    variables_dict["Wo_policy" + name + "_assign_ph"] = tf.placeholder(tf.float32, shape=[hidden_size[-1], output_size], 
+        name="Wo_policy"+name+"_assign_ph")
     variables_dict["Wo_policy" + name + "_assign"] = tf.assign(variables_dict["Wo_policy" + name], 
-        variables_dict["Wo_policy" + name + "_ph"])
-    variables_dict["Wo_policy_grad" + name] = weight_variable([hidden_size[-1], output_size], name="Wo_policy_grad" + name)
+        variables_dict["Wo_policy" + name + "_assign_ph"])
+    variables_dict["Wo_policy_grad_ph_policy" + name] = tf.placeholder(tf.float32, shape=[hidden_size[-1], output_size],
+        name="Wo_policy_grad_ph_policy" + name)
 
     variables_dict["bo_policy" + name] = bias_variable((1, output_size), name="bo_policy" + name)
-    variables_dict["bo_policy" + name + "_ph"] = tf.placeholder(tf.float32, shape=[1, output_size], 
-        name="bo_policy"+name+"_ph")
+    variables_dict["bo_policy" + name + "_assign_ph"] = tf.placeholder(tf.float32, shape=[1, output_size], 
+        name="bo_policy"+name+"_assign_ph")
     variables_dict["bo_policy" + name + "_assign"] = tf.assign(variables_dict["bo_policy" + name], 
-        variables_dict["bo_policy" + name + "_ph"])
-    variables_dict["bo_policy_grad" + name] = bias_variable((1, output_size), name="bo_policy_grad" + name)
+        variables_dict["bo_policy" + name + "_assign_ph"])
+    variables_dict["bo_policy_grad_ph_policy" + name] = tf.placeholder(tf.float32, shape=[1, output_size],
+        name="bo_policy_grad_ph_policy" + name)
 
     variables_dict["Wo_vf" + name] = weight_variable([hidden_size[-1], 1], name="Wo_vf" + name)
-    variables_dict["Wo_vf" + name + "_ph"] = tf.placeholder(tf.float32, shape=[hidden_size[-1], 1], 
-        name="Wo_vf"+name+"_ph")
+    variables_dict["Wo_vf" + name + "_assign_ph"] = tf.placeholder(tf.float32, shape=[hidden_size[-1], 1], 
+        name="Wo_vf"+name+"_assign_ph")
     variables_dict["Wo_vf" + name + "_assign"] = tf.assign(variables_dict["Wo_vf" + name], 
-        variables_dict["Wo_vf" + name + "_ph"])
-    variables_dict["Wo_vf_grad" + name] = weight_variable([hidden_size[-1], 1], name="Wo_vf_grad" + name)
+        variables_dict["Wo_vf" + name + "_assign_ph"])
+    variables_dict["Wo_vf_grad_ph_vf" + name] = tf.placeholder(tf.float32, shape=[hidden_size[-1], 1],
+        name="Wo_vf_grad_ph_vf" + name)
 
     variables_dict["bo_vf" + name] = bias_variable((1, 1), name="bo_vf" + name)
-    variables_dict["bo_vf" + name + "_ph"] = tf.placeholder(tf.float32, shape=[1, 1], 
-        name="bo_vf"+name+"_ph")
+    variables_dict["bo_vf" + name + "_assign_ph"] = tf.placeholder(tf.float32, shape=[1, 1], 
+        name="bo_vf"+name+"_assign_ph")
     variables_dict["bo_vf" + name + "_assign"] = tf.assign(variables_dict["bo_vf" + name], 
-        variables_dict["bo_vf" + name + "_ph"])
-    variables_dict["bo_vf_grad" + name] = bias_variable((1, 1), name="bo_vf_grad" + name)
+        variables_dict["bo_vf" + name + "_assign_ph"])
+    variables_dict["bo_vf_grad_ph_vf" + name] = tf.placeholder(tf.float32, shape=[1, 1],
+        name="bo_vf_grad_ph_vf" + name)
 
     variables_dict["input_observation"] = tf.placeholder(tf.float32, shape=[None, input_size], name="i_observation" + name)
     
@@ -108,25 +123,25 @@ def build_model(variables_dict, name="", input_size=4, output_size=2, n_hidden=2
         y = tf.nn.relu(tf.matmul(y, variables_dict["W"+str(i+2) + name]) + 
                        variables_dict["b"+str(i+2) + name], name="y"+str(i+2) + name)
     
-    values = tf.matmul(y, variables_dict["Wo_vf" + name]) + variables_dict["bo_vf" + name]
-    actions = tf.nn.softmax(tf.matmul(y, variables_dict["Wo_vf" + name]) + variables_dict["bo_vf" + name])
+    vf = tf.matmul(y, variables_dict["Wo_vf" + name]) + variables_dict["bo_vf" + name]
+    actions = tf.nn.softmax(tf.matmul(y, variables_dict["Wo_policy" + name]) + variables_dict["bo_policy" + name])
 
-    return actions, values
+    return actions, vf
 
-def build_loss(values, actions, variables_dict, alpha_reg=0, beta_reg=0.01):
+def build_loss(vf, actions, variables_dict, alpha_reg=0, beta_reg=0.01):
     import tensorflow as tf
-    loss_list_policy = tf.log(tf.matmul(actions, variables_dict["y_action"])) * (variables_dict["y_true"] - values)
+    loss_list_policy = tf.log(tf.matmul(actions, variables_dict["y_action"])) * (variables_dict["y_true"] - vf)
     loss_policy = tf.reduce_mean(loss_list_policy)
 
-    loss_list_values = tf.nn.l2_loss(values - variables_dict["y_true"])
-    loss_values = tf.reduce_mean(loss_list_values)
+    loss_list_vf = tf.nn.l2_loss(vf - variables_dict["y_true"])
+    loss_vf = tf.reduce_mean(loss_list_vf)
 
     # l1_reg = 0
     # l2_reg = 0
 
     # keys = variables_dict.keys()
     # keys.sort()
-    # keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
+    # keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
     #         (key[-7:] != "_assign")]
     # for key in keys:
     #     l1_reg += tf.reduce_sum(tf.abs(variables_dict[key]))
@@ -134,38 +149,55 @@ def build_loss(values, actions, variables_dict, alpha_reg=0, beta_reg=0.01):
 
     # loss += alpha_reg * l1_reg + beta_reg * l2_reg
 
-    return loss_policy, loss_values
+    return loss_policy, loss_vf
 
-def compute_gradients(loss_policy, loss_values, variables_dict):
+def compute_gradients(loss_policy, loss_vf, variables_dict):
     import tensorflow as tf
-    keys = variables_dict.keys()
-    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
-            (key[-7:] != "_assign") & (key[-5:] != "_grad")]
     grads = {}
-    for key in keys:
-        grads[key + "_policy"] = tf.gradients(loss_policy)
-        grads[key + "_values"] = tf.gradients(loss_values)
+    
+    keys = variables_dict.keys()
+    keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
+            (key[-7:] != "_assign")]
+    common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
+    policy_keys = [key for key in keys if "policy" in key]
+    vf_keys = [key for key in keys if "vf" in key]
+    for key in common_keys:
+        grads[key + "_grad_ph_policy"] = tf.gradients(loss_policy, [variables_dict[key]])[0]
+        grads[key + "_grad_ph_vf"] = tf.gradients(loss_vf, [variables_dict[key]])[0]
+    for key in policy_keys:
+        grads[key + "_grad_ph_policy"] = tf.gradients(loss_policy, [variables_dict[key]])[0]
+    for key in vf_keys:
+        grads[key + "_grad_ph_vf"] = tf.gradients(loss_vf, [variables_dict[key]])[0]
 
     return grads
 
-def build_train_step(variables_dict, grads):
+def build_train_step(variables_dict, learning_rate):
+    import tensorflow as tf
+
     keys = variables_dict.keys()
-    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
-            (key[-7:] != "_assign") & (key[-5:] != "_grad")]
+    keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & ("ph" not in key) & \
+            ("assign" not in key)]
+    common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
+    policy_keys = [key for key in keys if "policy" in key]
+    vf_keys = [key for key in keys if "vf" in key]
     updates = []
-    for key in keys:
-        updates.append((grads[key + "_values"], variables_dict[key]))
-        updates.append((grads[key + "_policy"], variables_dict[key]))
+    for key in common_keys:
+        updates.append((variables_dict[key + "_grad_ph_policy"], variables_dict[key]))
+        updates.append((variables_dict[key + "_grad_ph_vf"], variables_dict[key]))
+    for key in policy_keys:
+        updates.append((variables_dict[key + "_grad_ph_policy"], variables_dict[key]))
+    for key in vf_keys:
+        updates.append((variables_dict[key + "_grad_ph_vf"], variables_dict[key]))
 
     opt = tf.train.RMSPropOptimizer(learning_rate, decay=0.99, momentum=0.5, centered=True)
     train_step = opt.apply_gradients(updates)
     return train_step
 
-def best_choice(variables_dict, observation, sess):
+def best_action(variables_dict, observation, sess):
     import tensorflow as tf
     feed_dic = {variables_dict["input_observation"]: observation.reshape((1, -1))}
     #print("Je passe")
-    reward = sess.run(variables_dict["y"], feed_dict=feed_dic)
+    actions = sess.run(variables_dict["actions"], feed_dict=feed_dic)
     
     """
     reward = [max(i, 0) for i in reward[0]]
@@ -178,13 +210,7 @@ def best_choice(variables_dict, observation, sess):
     return action, reward[action]
     """
 
-    return np.argmax(reward), np.max(reward)
-
-def best_action(variables_dict, observation, sess):
-    return best_choice(variables_dict, observation, sess)[0]
-
-def best_reward(variables_dict, observation, sess):
-    return best_choice(variables_dict, observation, sess)[1]
+    return np.argmax(actions)
 
 def epsilon_greedy_policy(variables_dict, observation, epsilon, env, sess, policy=None):
     u = np.random.binomial(1, epsilon)
@@ -205,8 +231,8 @@ def assign_value_to_theta(variables_dict, sess):
     import tensorflow as tf
     keys = variables_dict.keys()
     keys.sort()
-    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
-            (key[-7:] != "_assign")]
+    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & ("ph" not in key) & \
+            ("assign" not in key)]
     for i, key in enumerate(keys):
         l_theta[i] = sess.run(variables_dict[key])
     return l_theta
@@ -216,22 +242,10 @@ def read_value_from_theta(variables_dict, sess):
     import tensorflow as tf
     keys = variables_dict.keys()
     keys.sort()
-    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
-            (key[-7:] != "_assign")]
+    keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & ("ph" not in key) & \
+            ("assign" not in key)]
     for i, key in enumerate(keys):
-        feed_dict = {variables_dict[key + "_ph"]: l_theta[i]}
-        sess.run(variables_dict[key + "_assign"], feed_dict=feed_dict)
-    return variables_dict
-
-def read_value_from_theta_minus(variables_dict, sess):
-    global l_theta_minus
-    import tensorflow as tf
-    keys = variables_dict.keys()
-    keys.sort()
-    keys = [ key for key in keys if (key not in ["input_observation", "y_true", "y_action", "y"]) & (key[-3:] != "_ph") & \
-            (key[-7:] != "_assign")]
-    for i, key in enumerate(keys):
-        feed_dict = {variables_dict[key + "_ph"]: l_theta_minus[i]}
+        feed_dict = {variables_dict[key + "_assign_ph"]: l_theta[i]}
         sess.run(variables_dict[key + "_assign"], feed_dict=feed_dict)
     return variables_dict
 
@@ -279,100 +293,112 @@ class slave_worker(mp.Process):
             self.policy = policy
         
         self.variables_dict = create_variable(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
-        self.variables_dict["values"], self.variables_dict["actions"] = build_model(self.variables_dict,
+        self.variables_dict["actions"], self.variables_dict["values"] = build_model(self.variables_dict,
                                                                                     n_hidden=model_option["n_hidden"], 
                                                                                     hidden_size=model_option["hidden_size"])
-
-        self.loss_policy, self.loss_values = build_loss(self.variables_dict["values"], self.variables_dict["actions"],
-                                                        self.variables_dict, learning_rate=learning_rate,
-                                                        alpha_reg=alpha_reg, beta_reg=beta_reg)
-        self.train_step = build_train_step(self.variables_dict, "Un truc à méditer après le déjeuner")
-        
-        self.variables_dict_minus = create_variable(name="_minus", n_hidden=model_option["n_hidden"], 
-                                                    hidden_size=model_option["hidden_size"])
-        self.variables_dict_minus["values"], self.variables_dict_minus["actions"] = build_model(self.variables_dict_minus,
-                                                                                                name="_minus",
-                                                                                                n_hidden=model_option["n_hidden"], 
-                                                                                                hidden_size=model_option["hidden_size"])
+        self.loss_policy, self.loss_vf = build_loss(self.variables_dict["values"], self.variables_dict["actions"],
+                                                    self.variables_dict, alpha_reg=alpha_reg, beta_reg=beta_reg)
+        self.gradients = compute_gradients(self.loss_policy, self.loss_vf, self.variables_dict)
+        self.train_step = build_train_step(self.variables_dict, learning_rate=learning_rate)
             
         
     def run(self):
         import tensorflow as tf
-        global T, l_theta, l_theta_minus
+        global T, l_theta
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
         epsilon = self.epsilon_ini
         t = 0
+        x_batch = 0
         y_batch = []
         nb_env = 0
-        firstiter=True
-        t_init = t
 
         observation = self.env.reset()
 
         while T.value<self.T_max:
-            
+
             # if T.value %500 == 0:
             #     print(T.value)
+            t = 0
+            t_init = t
+            done = False
+
+            observation_batch = observation.reshape((1, -1))
+
+            reward_batch = []
+            action_batch = []
+
+            d_theta = {}
+            keys = self.variables_dict.keys()
+            keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
+                    (key[-7:] != "_assign")]
+            common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
+            policy_keys = [key for key in keys if "policy" in key]
+            vf_keys = [key for key in keys if "vf" in key]
+            for key in common_keys:
+                d_theta[key + "_grad_ph_policy"] = 0
+                d_theta[key + "_grad_ph_vf"] = 0
+            for key in policy_keys:
+                d_theta[key + "_grad_ph_policy"] = 0
+            for key in vf_keys:
+                d_theta[key + "_grad_ph_vf"] = 0
 
             self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
-            self.variables_dict_minus = read_value_from_theta(self.variables_dict_minus, self.sess)
 
-            action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess, self.policy)
-
-            observationprime, reward, done, info = self.env.step(action) 
-
-            if t - t_init > 200:
-                done = True
-
-            if done:
-                y = reward
-                observationprime = self.env.reset()
-                t_init = t + 1
-                nb_env += 1
-            else:
-                y = reward + self.gamma * best_reward(self.variables_dict_minus, observationprime, self.sess)
+            while (not done) & (t-t_init<=self.t_max):
             
-            if firstiter:
-                firstiter=False
-                observation_batch = observation.reshape((1, -1))
-                action_batch = [action]
-            else:
-                observation_batch = np.vstack((observation_batch, observation.reshape((1, -1))))
+                if self.verbose:
+                    self.env.render()
+                    if T.value%5000 == 0:
+                        print("T = %s"%T.value)
+
+                action = epsilon_greedy_policy(self.variables_dict, observation, epsilon, self.env, self.sess, self.policy)
+
+                observation, reward, done, info = self.env.step(action) 
+
+                reward_batch.append(reward)
                 action_batch.append(action)
-            
-            y_batch.append(y)
-            observation = observationprime
-            with T.get_lock():
-                T.value += 1
-            
-            t += 1
-            if T.value %self.Itarget == 0:
-                for i, theta_minus in enumerate(l_theta_minus):
-                    l_theta_minus[i] = l_theta[i]
-            
-            if t %self.Iasyncupdate == 0:
-               
-                action_batch_multiplier = np.eye(2)[action_batch].T
+                observation_batch = np.vstack((observation.reshape((1, -1)), observation_batch))
                 
-                y_batch_arr = np.array(y_batch).reshape((-1, 1))
 
-                self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
+                #if t - t_init > 200:
+                #    done = True
+
+                if done:
+                    nb_env += 1
+                    observation = self.env.reset()
                 
-                feed_dict = {self.variables_dict["input_observation"]: observation_batch,
-                             self.variables_dict["y_true"]: y_batch_arr, 
-                             self.variables_dict["y_action"]: action_batch_multiplier}
-                self.sess.run(self.train_step, feed_dict=feed_dict)
+                with T.get_lock():
+                    T.value += 1
+                
+                t += 1
 
-                l_theta = assign_value_to_theta(self.variables_dict, self.sess)
+                if epsilon>0.01:
+                    epsilon -= (self.epsilon_ini - 0.01)/50000
+            
+            if done:
+                R = 0
+            else:
+                R = self.sess.run(self.variables_dict["values"],
+                    feed_dict={self.variables_dict["input_observation"]: observation.reshape((1, -1))})
 
-                firstiter = True
-                y_batch = []
+            action_batch.reverse()
+            for i in range(t - 1, t_init - 1, -1):
+                R = reward_batch[i] + self.gamma * R
+                feed_dict = {self.variables_dict["input_observation"]: observation_batch[i,:],
+                            self.variables_dict["y_true"]: np.array(R).reshape((-1, 1)), 
+                            self.variables_dict["y_action"]: np.eye(2)[action_batch[i]].T}
+                for key in d_theta.keys():
+                    d_theta[key] += self.sess.run(self.gradients[key], feed_dict=feed_dict)
+            
+            feed_dict = {}
+            for key in d_theta.keys():
+                feed_dict[self.variables_dict[keys]] = d_theta[key]
+            self.sess.run(self.train_step, feed_dict=feed_dict)
 
-            if epsilon>0.01:
-                epsilon -= (self.epsilon_ini - 0.01)/50000
+            l_theta = assign_value_to_theta(self.variables_dict, self.sess)
 
         return
 
