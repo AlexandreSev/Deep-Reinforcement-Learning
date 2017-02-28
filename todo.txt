@@ -1,0 +1,4 @@
+1. Coder A3C
+2. Refacto codes pour améliorer la lisibilité
+3. Ajout de callbacks pour suivre les évolutions
+4. Réussir Acrobot-v1
