@@ -1,6 +1,6 @@
 # coding: utf-8
 import numpy as np
-global l_theta, l_theta_minus
+import settings
 
 def critere_keys(key, minus=False):
 	"""
@@ -10,7 +10,7 @@ def critere_keys(key, minus=False):
 		minus: Boolean, If true, critere_keys returns True if the key corresponds 
 			   to a parameter of theta minus, else, it returns True for a parameter of theta
 	"""
-	critere = (key not in ["input_observation", "y_true", "y_action", "y"])
+	critere = (key not in ["input_observation", "y_true", "y_action", "y", "y_minus"])
 	critere = critere & (key[-3:] != "_ph") & (key[-7:] != "_assign")
 
 	if minus:
@@ -212,7 +212,6 @@ class QNeuralNetwork():
 		Parameters: 
 			sess: tensorflow session, allow multiprocessing
 		"""
-		global l_theta
 		import tensorflow as tf
 
 		assert(self.initialised, "This model must be initialised (self.initialisation()).")
@@ -222,7 +221,7 @@ class QNeuralNetwork():
 		keys = [ key for key in keys if critere_keys(key, minus=False)]
 
 		for i, key in enumerate(keys):
-			l_theta[i] = sess.run(self.variables[key])
+			settings.l_theta[i] = sess.run(self.variables[key])
 		
 	def read_value_from_theta(self, sess):
 		"""
@@ -230,7 +229,6 @@ class QNeuralNetwork():
 		Parameters: 
 			sess: tensorflow session, allow multiprocessing
 		"""
-		global l_theta
 		import tensorflow as tf
 
 		assert(self.initialised, "This model must be initialised (self.initialisation()).")
@@ -240,7 +238,7 @@ class QNeuralNetwork():
 		keys = [ key for key in keys if critere_keys(key, minus=False)]
 
 		for i, key in enumerate(keys):
-			feed_dict = {self.variables[key + "_ph"]: l_theta[i]}
+			feed_dict = {self.variables[key + "_ph"]: settings.l_theta[i]}
 			sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)
 
 	def read_value_from_theta_minus(self, sess):
@@ -249,7 +247,6 @@ class QNeuralNetwork():
 		Parameters: 
 			sess: tensorflow session, allow multiprocessing
 		"""
-		global l_theta_minus
 		import tensorflow as tf
 
 		assert(self.initialised, "This model must be initialised (self.initialisation()).")
@@ -259,5 +256,5 @@ class QNeuralNetwork():
 		keys = [ key for key in keys if critere_keys(key, minus=True)]
 
 		for i, key in enumerate(keys):
-			feed_dict = {self.variables[key + "_ph"]: l_theta_minus[i]}
+			feed_dict = {self.variables[key + "_ph"]: settings.l_theta_minus[i]}
 			sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)

@@ -5,8 +5,7 @@ import sys
 from utils import *
 from asynchronenstepslave import slave_worker
 from tester import tester_worker
-
-global l_theta, l_theta_minus
+from settings import init
 
 
 def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", 
@@ -34,15 +33,11 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0",
 	    render: If True, environments of the tester will be rendered
 	    kwargs: args of multiprocessing.Process
 	"""
-	global T, l_theta, l_theta_minus
 
-	T = mp.Value('i', 0)
 	env_temp = gym.make(env_name)
 
-	l_theta = initialise(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
-	            input_size= env_temp.observation_space.shape[0], output_size=env_temp.action_space.n)
-	l_theta_minus = initialise(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"],
-	    input_size= env_temp.observation_space.shape[0], output_size=env_temp.action_space.n)
+	init(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
+	     input_size= env_temp.observation_space.shape[0], output_size=env_temp.action_space.n)
 
 	jobs = []
 	policies = [None for i in range(nb_process)]

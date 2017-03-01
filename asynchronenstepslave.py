@@ -5,6 +5,7 @@ import qnn
 import multiprocessing as mp
 import numpy as np
 from utils import epsilon_greedy_policy
+import settings
 
 class slave_worker(mp.Process):
 	"""
@@ -56,7 +57,6 @@ class slave_worker(mp.Process):
 		Run the worker and launch the n step algorithm
 		"""
 		import tensorflow as tf
-		global T, l_theta, l_theta_minus
 
 		self.qnn.initialisation()
 
@@ -71,7 +71,7 @@ class slave_worker(mp.Process):
 
 		observation = self.env.reset()
 
-		while T.value<self.T_max:
+		while settings.T.value<self.T_max:
 
 		    t = 0
 		    t_init = t
@@ -89,8 +89,8 @@ class slave_worker(mp.Process):
 		    
 		        if self.verbose:
 		            self.env.render()
-		            if T.value%5000 == 0:
-		                print("T = %s"%T.value)
+		            if settings.T.value%5000 == 0:
+		                print("T = %s"%settings.T.value)
 
 		        self.qnn.read_value_from_theta(self.sess)
 
@@ -108,8 +108,8 @@ class slave_worker(mp.Process):
 		            nb_env += 1
 		            observation = self.env.reset()
 		        
-		        with T.get_lock():
-		            T.value += 1
+		        with settings.T.get_lock():
+		            settings.T.value += 1
 		        
 		        t += 1
 
@@ -136,10 +136,10 @@ class slave_worker(mp.Process):
 		    
 		    self.qnn.read_value_from_theta(self.sess)
 		    
-		    feed_dict = {self.variables_dict["input_observation"]: observation_batch[:-1, :][shuffle, :],
-		                 self.variables_dict["y_true"]: y_batch_arr[shuffle, :], 
-		                 self.variables_dict["y_action"]: action_batch_multiplier[:, shuffle]}
-		    self.sess.run(self.train_step, feed_dict=feed_dict)
+		    feed_dict = {self.qnn.variables["input_observation"]: observation_batch[:-1, :][shuffle, :],
+		                 self.qnn.variables["y_true"]: y_batch_arr[shuffle, :], 
+		                 self.qnn.variables["y_action"]: action_batch_multiplier[:, shuffle]}
+		    self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
 
 
 		    self.qnn.assign_value_to_theta(self.sess)

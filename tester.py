@@ -5,6 +5,7 @@ import numpy as np
 from qnn import QNeuralNetwork
 from utils import epsilon_greedy_policy
 import multiprocessing as mp
+import settings
 
 class tester_worker(mp.Process):
     """
@@ -47,6 +48,7 @@ class tester_worker(mp.Process):
         self.current_mean = 0
         self.last_T = 0
         self.n_sec_print = n_sec_print
+        self.policy=None
 
     def add_history(self, reward):
         """
@@ -73,7 +75,6 @@ class tester_worker(mp.Process):
         """
         Launch the worker
         """
-        global l_theta, l_theta_minus
         import tensorflow as tf
         t_taken = time.time()
 
@@ -88,11 +89,13 @@ class tester_worker(mp.Process):
 
         observation = self.env.reset()
 
+        epsilon=0.01
+
         t_init = time.time()
-        while (T.value<self.T_max) & (not self.stoping_criteria()):
+        while (settings.T.value<self.T_max) & (not self.stoping_criteria()):
             
             if time.time() - t_init > self.n_sec_print:
-                print("T = %s"%T.value)
+                print("T = %s"%settings.T.value)
                 print("Max mean = %s"%self.max_mean)
                 print("Current mean = %s"%self.current_mean)
                 t_init = time.time()
@@ -106,9 +109,9 @@ class tester_worker(mp.Process):
                     self.env.render()
 
                 t += 1
-                if T.value %self.Itarget == 0:
-                    for i, theta_minus in enumerate(l_theta_minus):
-                        l_theta_minus[i] = l_theta[i]
+                if settings.T.value %self.Itarget == 0:
+                    for i, theta_minus in enumerate(settings.l_theta_minus):
+                        settings.l_theta_minus[i] = settings.l_theta[i]
 
                 action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
                                                self.sess, self.policy)
@@ -124,7 +127,7 @@ class tester_worker(mp.Process):
             if not done:
                 observation = self.env.reset()
                 self.add_history(current_reward)
-                self.last_T = T.value
+                self.last_T = settings.T.value
             self.qnn.read_value_from_theta(self.sess)
 
         print("Training completed")
@@ -132,7 +135,7 @@ class tester_worker(mp.Process):
         print("T final = %s"%self.last_T)
         print("Done in %s environments"%(self.nb_env-100))
         print("Done in %s seconds"%(time.time() - t_taken))
-        T.value += self.T_max
+        settings.T.value += self.T_max
 
         observation = self.env.reset()
 
