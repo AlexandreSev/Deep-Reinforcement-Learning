@@ -14,7 +14,7 @@ class tester_worker(mp.Process):
     
     def __init__(self, T_max=100000, t_max=200, env_name="CartPole-v0", 
                 model_option={"n_hidden":1, "hidden_size":[10]}, n_sec_print=10, 
-                goal=195, len_history=100, Itarget=15, render=False, **kwargs):
+                goal=195, len_history=100, Itarget=15, render=False, weighted=False, **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -38,6 +38,7 @@ class tester_worker(mp.Process):
         self.nb_env = 0
         self.Itarget = Itarget
         self.render=render
+        self.weighted=weighted
         
         self.qnn = QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
                 n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
@@ -89,7 +90,7 @@ class tester_worker(mp.Process):
 
         observation = self.env.reset()
 
-        epsilon=0.01
+        epsilon=0.
 
         t_init = time.time()
         while (settings.T.value<self.T_max) & (not self.stoping_criteria()):
@@ -114,7 +115,7 @@ class tester_worker(mp.Process):
                         settings.l_theta_minus[i] = settings.l_theta[i]
 
                 action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
-                                               self.sess, self.policy)
+                                               self.sess, self.policy, self.weighted)
 
                 observation, reward, done, info = self.env.step(action) 
 
@@ -127,8 +128,9 @@ class tester_worker(mp.Process):
             if not done:
                 observation = self.env.reset()
                 self.add_history(current_reward)
+            else:
                 self.last_T = settings.T.value
-            self.qnn.read_value_from_theta(self.sess)
+                self.qnn.read_value_from_theta(self.sess)
 
         print("Training completed")
         saver.save(self.sess, './end_training.weights')
@@ -146,7 +148,7 @@ class tester_worker(mp.Process):
                 t += 1
                 self.env.render()
 
-                action = best_action(self.variables_dict, observation, self.sess)
+                action = self.qnn.best_action(observation, self.sess)
 
                 observation, reward, done, info = self.env.step(action) 
 

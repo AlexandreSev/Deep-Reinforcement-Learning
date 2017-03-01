@@ -184,27 +184,55 @@ class QNeuralNetwork():
 		"""
 		assert(self.initialised, "This model must be initialised (self.initialisation())")
 		feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-		reward = sess.run(self.variables["y"], feed_dict=feed_dic)
+		reward = np.squeeze(sess.run(self.variables["y"], feed_dict=feed_dic))
 	  
 		return np.argmax(reward), np.max(reward)
 
-	def best_action(self, observation, sess):
+	def weighted_choice(self, observation, sess):
+		"""
+		Return a random action weighted by estimated reward
+		Parameters:
+			observation: np.array, state of the environnement
+			sess: tensorflow session, allow multiprocessing
+		"""
+		assert(self.initialised, "This model must be initialised (self.initialisation())")
+		feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
+		reward = np.squeeze(sess.run(self.variables["y"], feed_dict=feed_dic))
+
+		cor = max(-min(reward), 0)
+		reward = [i+cor for i in reward]
+		proba = [i/np.sum(reward) for i in reward]
+		action = np.random.choice(range(len(reward)), p=proba)
+	  
+		return action, reward[action]
+
+	def best_action(self, observation, sess, weighted=False):
 		"""
 		Return the best action for a given state
 		Parameters:
 			observation: np.array, state of the environnement
 			sess: tensorflow session, allow multiprocessing
+			weighted: If True, return a random aciton weighted with estimated reward. 
+					  Else, the best one.
 		"""
-		return self.best_choice(observation, sess)[0]
+		if weighted:
+			return self.weighted_choice(observation, sess)[0]
+		else:
+			return self.best_choice(observation, sess)[0]
 
-	def best_reward(self, observation, sess):
+	def best_reward(self, observation, sess, weighted=False):
 		"""
 		Return the estimated reward for a given state
 		Parameters:
 			observation: np.array, state of the environnement
 			sess: tensorflow session, allow multiprocessing
+			weighted: If True, return a random aciton weighted with estimated reward. 
+					  Else, the best one.
 		"""
-		return self.best_choice(observation, sess)[1]
+		if weighted:
+			return self.weighted_choice(observation, sess)[1]
+		else:
+			return self.best_choice(observation, sess)[1]
 
 	def assign_value_to_theta(self, sess):
 		"""

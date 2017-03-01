@@ -7,21 +7,23 @@ import numpy as np
 from utils import epsilon_greedy_policy
 import settings
 
-class slave_worker(mp.Process):
+class slave_worker_n_step(mp.Process):
 	"""
 	The class coding a process to run a environment gym in itself and sharing gradient updates. 
 	This slave uses asynchrone n step Q learning algorithm.
 	"""
 
-	def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, 
+	def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, Iasyncupdate=10,
 	             env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
-	             verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, **kwargs):
+	             verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, 
+	             weighted=False, **kwargs):
 		"""
 		Parameters:
 			T_max: maximum number of iterations
 			t_max: Value of n in the n step algorithm
 			gamma: depreciation of the futur
 			learning_rate: learning_rate of the optimiser
+			Iasyncupdate: Not used here
 			env_name: name of gym environnment
 			model_option: dictionary, must have two keys. n_hidden defines the number of hidden layers,
 						hidden_size the size of them in the QNeuralNetwork used to estimate the reward
@@ -32,7 +34,7 @@ class slave_worker(mp.Process):
 			beta_reg: coefficient of l2 regularisation
 			kwargs: args of multiprocessing.Process
 		"""
-		super(slave_worker, self).__init__(**kwargs)
+		super(slave_worker_n_step, self).__init__(**kwargs)
 		self.T_max = T_max
 		self.t_max = t_max
 		self.gamma = gamma
@@ -41,6 +43,7 @@ class slave_worker(mp.Process):
 		self.input_size = self.env.observation_space.shape[0]
 		self.verbose = verbose
 		self.epsilon_ini = epsilon_ini
+		self.weighted = weighted
 
 		if policy is None:
 		    self.policy = self.env.action_space.sample
@@ -95,7 +98,7 @@ class slave_worker(mp.Process):
 		        self.qnn.read_value_from_theta(self.sess)
 
 		        action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
-		        								self.sess, self.policy)
+		        								self.sess, self.policy, self.weighted)
 
 		        observation, reward, done, info = self.env.step(action) 
 
@@ -114,12 +117,12 @@ class slave_worker(mp.Process):
 		        t += 1
 
 		        if epsilon>0.01:
-		            epsilon -= (self.epsilon_ini - 0.01)/200000
+		            epsilon -= (self.epsilon_ini - 0.01)/25000
 		    
 		    if done:
 		        R = 0
 		    else:
-		        R = self.qnn.best_reward(observation, self.sess)
+		        R = self.qnn.best_reward(observation, self.sess, self.weighted)
 
 		    true_reward = []
 		    for i in range(t - 1, t_init - 1, -1):
@@ -145,9 +148,3 @@ class slave_worker(mp.Process):
 		    self.qnn.assign_value_to_theta(self.sess)
 
 		return
-
-
-
-
-
-

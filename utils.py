@@ -2,7 +2,7 @@
 import numpy as np
 import multiprocessing as mp
 
-def epsilon_greedy_policy(qnn, observation, epsilon, env, sess, policy=None):
+def epsilon_greedy_policy(qnn, observation, epsilon, env, sess, policy=None, weighted=False):
 	"""
 	Take a random action with the probability epsilon, else the best action estimated by the qnn.
 	Parameters:
@@ -20,7 +20,7 @@ def epsilon_greedy_policy(qnn, observation, epsilon, env, sess, policy=None):
 			action = policy()
 			return action
 	else:
-		return qnn.best_action(observation, sess)
+		return qnn.best_action(observation, sess, weighted)
 
 def create_list_epsilon(n):
 	"""
