@@ -90,13 +90,13 @@ def build_model(variables_dict, name="", input_size=4, output_size=2, n_hidden=2
 
     return y
 
-def build_loss(y, variables_dict, learning_rate=0.001, alpha_reg=0.001, beta_reg=0.001):
+def build_loss(y, variables_dict, learning_rate=0.001, alpha_reg=0, beta_reg=0.01):
     import tensorflow as tf
     loss_list = tf.nn.l2_loss(tf.matmul(y, variables_dict["y_action"]) - variables_dict["y_true"])
     loss = tf.reduce_mean(loss_list)
 
     l1_reg = 0
-    l2_reg = 0.01
+    l2_reg = 0
 
     keys = variables_dict.keys()
     keys.sort()
