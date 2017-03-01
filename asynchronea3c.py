@@ -394,6 +394,7 @@ class slave_worker(mp.Process):
                     d_theta[key] += self.sess.run(self.gradients[key], feed_dict=feed_dict)
             
             feed_dict = {self.variables_dict[key]: d_theta[key] for key in d_theta.keys()}
+            self.variables_dict = read_value_from_theta(self.variables_dict, self.sess)
             self.sess.run(self.train_step, feed_dict=feed_dict)
 
             l_theta = assign_value_to_theta(self.variables_dict, self.sess)
