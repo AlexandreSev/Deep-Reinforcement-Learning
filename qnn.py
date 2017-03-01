@@ -1,5 +1,6 @@
 # coding: utf-8
 import numpy as np
+global l_theta, l_theta_minus
 
 def critere_keys(key, minus=False):
 	"""
@@ -65,7 +66,7 @@ class QNeuralNetwork():
 		self.build_loss()
 		self.initialised = True
 
-	def weight_variable(self, shape, name="W"):
+	def create_weight_variable(self, shape, name="W"):
 		"""
 		Create a matrix of weights as a tf variable. Create also a placeholder and a assign operation
 		to change it value.
@@ -73,14 +74,15 @@ class QNeuralNetwork():
 			shape: 2-uple, size of the matrix
 			name: name under which the variable is saved
 		"""
-	    import tensorflow as tf
-	    self.variables[name] = tf.Variable(tf.truncated_normal(shape, stddev=0.1), name=name)
-	    self.variables[name + "_ph"] = tf.placeholder(tf.float32, shape=[input_size, hidden_size[0]], 
-	        name=name+"_ph")
-	    self.variables[name + "_assign"] = tf.assign(self.variables[name], 
-	        self.variables[name + "_ph"])
+		import tensorflow as tf
 
-	def bias_variable(self, shape, name="b"):
+		self.variables[name] = tf.Variable(tf.truncated_normal(shape, stddev=0.1), name=name)
+		self.variables[name + "_ph"] = tf.placeholder(tf.float32, shape=shape, 
+			name=name+"_ph")
+		self.variables[name + "_assign"] = tf.assign(self.variables[name], 
+			self.variables[name + "_ph"])
+
+	def create_bias_variable(self, shape, name="b"):
 		"""
 		Create a biais as a tf variable. Create also a placeholder and a assign operation
 		to change it value.
@@ -88,12 +90,13 @@ class QNeuralNetwork():
 			shape: 2-uple, size of the biais
 			name: name under which the variable is saved
 		"""
-	    import tensorflow as tf
-	    self.variables[name] = tf.Variable(tf.constant(0.1, shape=shape), name=name)
-	    self.variables[name + "_ph"] = tf.placeholder(tf.float32, shape=[1, hidden_size[0]], 
-	        name=name+"_ph")
-	    self.variables[name + "_assign"] = tf.assign(self.variables[name], 
-	        self.variables[name + "_ph"])
+		import tensorflow as tf
+
+		self.variables[name] = tf.Variable(tf.constant(0.1, shape=shape), name=name)
+		self.variables[name + "_ph"] = tf.placeholder(tf.float32, shape=shape, 
+			name=name+"_ph")
+		self.variables[name + "_assign"] = tf.assign(self.variables[name], 
+			self.variables[name + "_ph"])
 
 	def create_variables(self, name=""):
 		"""
@@ -102,19 +105,19 @@ class QNeuralNetwork():
 			name: string, used to complete every name of variables, usefull to create two NNs
 		"""
 		self.create_weight_variable([self.input_size, self.hidden_size[0]], name="W1" + name)
-	    
-	    self.create_bias_variable((1, self.hidden_size[0]), name="b1" + name)
 
-	    for i in range(n_hidden-1):
-	        self.create_weight_variable([self.hidden_size[i], self.hidden_size[i+1]], 
-	        							name="W"+str(i+2) + name)
+		self.create_bias_variable((1, self.hidden_size[0]), name="b1" + name)
 
-	        self.create_bias_variable((1, self.hidden_size[i+1]), name="b"+str(i+2) + name)
+		for i in range(self.n_hidden-1):
+			self.create_weight_variable([self.hidden_size[i], self.hidden_size[i+1]], 
+										name="W"+str(i+2) + name)
+
+			self.create_bias_variable((1, self.hidden_size[i+1]), name="b"+str(i+2) + name)
 
 
-	    self.create_weight_variable([self.hidden_size[-1], self.output_size], name="Wo" + name)
+		self.create_weight_variable([self.hidden_size[-1], self.output_size], name="Wo" + name)
 
-	    self.create_bias_variable((1, self.output_size), name="bo" + name)
+		self.create_bias_variable((1, self.output_size), name="bo" + name)
 
 	def create_placeholders(self):
 		"""
@@ -122,13 +125,13 @@ class QNeuralNetwork():
 		"""
 		import tensorflow as tf
 
-	    self.variables["input_observation"] = tf.placeholder(tf.float32, 
-	    	shape=[None, self.input_size], name="i_observation")
+		self.variables["input_observation"] = tf.placeholder(tf.float32, 
+			shape=[None, self.input_size], name="i_observation")
 
-	    self.variables["y_true"] = tf.placeholder(tf.float32, shape=[None, 1], name="y_true")
+		self.variables["y_true"] = tf.placeholder(tf.float32, shape=[None, 1], name="y_true")
 
-	    self.variables["y_action"] = tf.placeholder(tf.float32, shape=[self.output_size, None], 
-	    	name="action")
+		self.variables["y_action"] = tf.placeholder(tf.float32, shape=[self.output_size, None], 
+			name="action")
 
 	def build_model(self, name=""):
 		"""
@@ -136,41 +139,41 @@ class QNeuralNetwork():
 		Parameters:
 			name:String, name used in create_variables
 		"""
-	    import tensorflow as tf
-	    
-	    y = tf.nn.relu(tf.matmul(self.variables["input_observation"], self.variables["W1" + name]) + 
-	                   self.variables["b1" + name], name="y1"+name)
-	    
-	    for i in range(n_hidden-1):
-	        y = tf.nn.relu(tf.matmul(y, self.variables["W"+str(i+2)+name]) + 
-	                       self.variables["b"+str(i+2)+name], name="y"+str(i+2)+name)
-	    
-	    self.variables["y"+name] = tf.matmul(y, self.variables["Wo"+name]) + self.variables["bo"+name]
+		import tensorflow as tf
+		
+		y = tf.nn.relu(tf.matmul(self.variables["input_observation"], self.variables["W1" + name]) + 
+					   self.variables["b1" + name], name="y1"+name)
+		
+		for i in range(self.n_hidden-1):
+			y = tf.nn.relu(tf.matmul(y, self.variables["W"+str(i+2)+name]) + 
+						   self.variables["b"+str(i+2)+name], name="y"+str(i+2)+name)
+		
+		self.variables["y"+name] = tf.matmul(y, self.variables["Wo"+name]) + self.variables["bo"+name]
 
 	def build_loss(self):
 		"""
 		Create the node for the loss, and it's reduction
 		"""
-	    import tensorflow as tf
+		import tensorflow as tf
 
-	    y_1d = tf.matmul(self.variables["y"], variables_dict["y_action"])
-	    loss = tf.nn.l2_loss(y_1d - self.variables["y_true"])
-	    reduce_loss = tf.reduce_mean(loss)
+		y_1d = tf.matmul(self.variables["y"], self.variables["y_action"])
+		loss = tf.nn.l2_loss(y_1d - self.variables["y_true"])
+		reduce_loss = tf.reduce_mean(loss)
 
-	    l1_reg = 0
-	    l2_reg = 0
+		l1_reg = 0
+		l2_reg = 0
 
-	    keys = self.variables.keys()
-	    keys.sort()
-	    keys = [ key for key in keys if critere_keys(key, minus=False) ]
-	    for key in keys:
-	        l1_reg += tf.reduce_sum(tf.abs(self.variables[key]))
-	        l2_reg += tf.nn.l2_loss(self.variables[key])
+		keys = self.variables.keys()
+		keys.sort()
+		keys = [ key for key in keys if critere_keys(key, minus=False) ]
+		for key in keys:
+			l1_reg += tf.reduce_sum(tf.abs(self.variables[key]))
+			l2_reg += tf.nn.l2_loss(self.variables[key])
 
-	    self.loss = reduce_loss + self.alpha_reg * l1_reg + self.beta_reg * l2_reg
-	    
-	    self.train_step = tf.train.RMSPropOptimizer(self.learning_rate, decay=0.99, momentum=0.5, 
-	    										centered=True).minimize(self.loss)
+		self.loss = reduce_loss + self.alpha_reg * l1_reg + self.beta_reg * l2_reg
+		
+		self.train_step = tf.train.RMSPropOptimizer(self.learning_rate, decay=0.99, momentum=0.5, 
+												centered=True).minimize(self.loss)
 
 	def best_choice(self, observation, sess):
 		"""
@@ -180,10 +183,10 @@ class QNeuralNetwork():
 			sess: tensorflow session, allow multiprocessing
 		"""
 		assert(self.initialised, "This model must be initialised (self.initialisation())")
-	    feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-	    reward = sess.run(self.variables["y"], feed_dict=feed_dic)
+		feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
+		reward = sess.run(self.variables["y"], feed_dict=feed_dic)
 	  
-	    return np.argmax(reward), np.max(reward)
+		return np.argmax(reward), np.max(reward)
 
 	def best_action(self, observation, sess):
 		"""
@@ -192,7 +195,7 @@ class QNeuralNetwork():
 			observation: np.array, state of the environnement
 			sess: tensorflow session, allow multiprocessing
 		"""
-	    return self.best_choice(observation, sess)[0]
+		return self.best_choice(observation, sess)[0]
 
 	def best_reward(self, observation, sess):
 		"""
@@ -201,7 +204,7 @@ class QNeuralNetwork():
 			observation: np.array, state of the environnement
 			sess: tensorflow session, allow multiprocessing
 		"""
-	    return self.best_choice(observation, sess)[1]
+		return self.best_choice(observation, sess)[1]
 
 	def assign_value_to_theta(self, sess):
 		"""
@@ -209,36 +212,36 @@ class QNeuralNetwork():
 		Parameters: 
 			sess: tensorflow session, allow multiprocessing
 		"""
-	    global l_theta
-	    import tensorflow as tf
+		global l_theta
+		import tensorflow as tf
 
 		assert(self.initialised, "This model must be initialised (self.initialisation()).")
 
-	    keys = self.variables.keys()
-	    keys.sort()
-	    keys = [ key for key in keys if critere_keys(key, minus=False)]
+		keys = self.variables.keys()
+		keys.sort()
+		keys = [ key for key in keys if critere_keys(key, minus=False)]
 
-	    for i, key in enumerate(keys):
-	        l_theta[i] = sess.run(self.variables[key])
-	    
+		for i, key in enumerate(keys):
+			l_theta[i] = sess.run(self.variables[key])
+		
 	def read_value_from_theta(self, sess):
 		"""
 		Assign the value of theta to the weights of the NN
 		Parameters: 
 			sess: tensorflow session, allow multiprocessing
 		"""
-	    global l_theta
-	    import tensorflow as tf
+		global l_theta
+		import tensorflow as tf
 
 		assert(self.initialised, "This model must be initialised (self.initialisation()).")
 
-	    keys = self.variables.keys()
-	    keys.sort()
-	    keys = [ key for key in keys if critere_keys(key, minus=False)]
+		keys = self.variables.keys()
+		keys.sort()
+		keys = [ key for key in keys if critere_keys(key, minus=False)]
 
-	    for i, key in enumerate(keys):
-	        feed_dict = {self.variables[key + "_ph"]: l_theta[i]}
-	        sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)
+		for i, key in enumerate(keys):
+			feed_dict = {self.variables[key + "_ph"]: l_theta[i]}
+			sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)
 
 	def read_value_from_theta_minus(self, sess):
 		"""
@@ -246,15 +249,15 @@ class QNeuralNetwork():
 		Parameters: 
 			sess: tensorflow session, allow multiprocessing
 		"""
-	    global l_theta_minus
-	    import tensorflow as tf
+		global l_theta_minus
+		import tensorflow as tf
 
 		assert(self.initialised, "This model must be initialised (self.initialisation()).")
-	    
-	    keys = self.variables.keys()
-	    keys.sort()
-	    keys = [ key for key in keys if critere_keys(key, minus=True)]
+		
+		keys = self.variables.keys()
+		keys.sort()
+		keys = [ key for key in keys if critere_keys(key, minus=True)]
 
-	    for i, key in enumerate(keys):
-	        feed_dict = {self.variables[key + "_ph"]: l_theta_minus[i]}
-	        sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)
+		for i, key in enumerate(keys):
+			feed_dict = {self.variables[key + "_ph"]: l_theta_minus[i]}
+			sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)

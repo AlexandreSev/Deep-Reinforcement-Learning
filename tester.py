@@ -4,6 +4,7 @@ import gym
 import numpy as np
 from qnn import QNeuralNetwork
 from utils import epsilon_greedy_policy
+import multiprocessing as mp
 
 class tester_worker(mp.Process):
     """
@@ -27,7 +28,7 @@ class tester_worker(mp.Process):
             render: If True, environment will be rendered
             kwargs: args of multiprocessing.Process
         """
-        super(master_worker, self).__init__(**kwargs)
+        super(tester_worker, self).__init__(**kwargs)
         self.T_max = T_max
         self.t_max = t_max
         self.env = gym.make(env_name)
@@ -37,9 +38,8 @@ class tester_worker(mp.Process):
         self.Itarget = Itarget
         self.render=render
         
-        self.qnn = qnn.QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
-                n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
-                learning_rate=learning_rate, alpha_reg=alpha_reg, beta_reg=beta_reg)
+        self.qnn = QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
+                n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
 
         self.history = [-1000 for i in range(len_history)]
         self.goal = goal
