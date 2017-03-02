@@ -14,7 +14,8 @@ import numpy as np
 def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 		 model_option={"n_hidden":1, "hidden_size":[10]}, Iasyncupdate=10,
          Itarget=15, gamma=0.9, learning_rate=0.001, several_eps=True, epsilon_ini=0.9, 
-         n_sec_print=10, master=False, goal=195, len_history=100, render=False, weighted=False):
+         n_sec_print=10, master=False, goal=195, len_history=100, render=False, weighted=False, 
+         eps_fall=50000):
 	"""
 	Parameters:
 		nb_process: number of slaves used in the training
@@ -68,16 +69,19 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 	    job = slave_worker(T_max=T_max, model_option=model_option, env_name=env_name, 
 	        policy=policies[i], epsilon_ini=epsilons[i], t_max=t_max, gamma=gamma, 
 	        learning_rate=learning_rate, verbose=verboses[i], weighted=weighted, 
-	        Iasyncupdate=Iasyncupdate)
+	        Iasyncupdate=Iasyncupdate, eps_fall=eps_fall)
 	    job.start()
 	    jobs.append(job)
 
 
-	exemple = tester_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name, 
+	exemple = tester_worker(T_max=T_max, t_max=500, model_option=model_option, env_name=env_name, 
 	                        n_sec_print=n_sec_print, goal=goal, len_history=len_history, Itarget=Itarget,
 	                        render=render, weighted=weighted)
 	exemple.start()
 	exemple.join()
+
+	for job in jobs:
+		job.close()
 
 
 if __name__=="__main__":
@@ -86,6 +90,6 @@ if __name__=="__main__":
     if len(args)>2:
         main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
             render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
-            weighted=False, algo="1stepsarsa")
+            weighted=False, algo="nstep", eps_fall=25000)
     else:
         main(3, 50000)

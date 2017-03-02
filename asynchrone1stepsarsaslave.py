@@ -16,7 +16,7 @@ class slave_worker_1_step_sarsa(mp.Process):
 	def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, Iasyncupdate=10,
 				 env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
 				 verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, 
-				 weighted=False, **kwargs):
+				 weighted=False, eps_fall=50000, **kwargs):
 		"""
 		Parameters:
 			T_max: maximum number of iterations
@@ -44,6 +44,7 @@ class slave_worker_1_step_sarsa(mp.Process):
 		self.epsilon_ini = epsilon_ini
 		self.weighted = weighted
 		self.Iasyncupdate=Iasyncupdate
+		self.eps_fall=eps_fall
 
 		if policy is None:
 			self.policy = self.env.action_space.sample
@@ -122,7 +123,7 @@ class slave_worker_1_step_sarsa(mp.Process):
 			t += 1
 
 			if epsilon>0.01:
-				epsilon -= (self.epsilon_ini - 0.01)/25000
+				epsilon -= (self.epsilon_ini - 0.01)/self.eps_fall
 
 			if t %self.Iasyncupdate == 0:
 			   

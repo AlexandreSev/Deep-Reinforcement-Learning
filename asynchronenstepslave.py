@@ -14,9 +14,9 @@ class slave_worker_n_step(mp.Process):
 	"""
 
 	def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, Iasyncupdate=10,
-	             env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
-	             verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, 
-	             weighted=False, **kwargs):
+				 env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
+				 verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, 
+				 weighted=False, eps_fall=50000, **kwargs):
 		"""
 		Parameters:
 			T_max: maximum number of iterations
@@ -44,17 +44,18 @@ class slave_worker_n_step(mp.Process):
 		self.verbose = verbose
 		self.epsilon_ini = epsilon_ini
 		self.weighted = weighted
+		self.eps_fall = eps_fall
 
 		if policy is None:
-		    self.policy = self.env.action_space.sample
+			self.policy = self.env.action_space.sample
 		else:
-		    self.policy = policy
+			self.policy = policy
 
 		self.qnn = qnn.QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
 				n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
 				learning_rate=learning_rate, alpha_reg=alpha_reg, beta_reg=beta_reg)
-		    
-	    
+			
+		
 	def run(self):
 		"""
 		Run the worker and launch the n step algorithm
@@ -76,75 +77,82 @@ class slave_worker_n_step(mp.Process):
 
 		while settings.T.value<self.T_max:
 
-		    t = 0
-		    t_init = t
-		    done = False
+			t = 0
+			t_init = t
+			done = False
 
-		    observation_batch = observation.reshape((1, -1))
+			observation_batch = observation.reshape((1, -1))
 
-		    reward_batch = []
-		    action_batch = []
+			reward_batch = []
+			action_batch = []
 
-		    self.qnn.read_value_from_theta(self.sess)
-
-
-		    while (not done) & (t-t_init<=self.t_max):
-		    
-		        if self.verbose:
-		            self.env.render()
-		            if settings.T.value%5000 == 0:
-		                print("T = %s"%settings.T.value)
-
-		        self.qnn.read_value_from_theta(self.sess)
-
-		        action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
-		        								self.sess, self.policy, self.weighted)
-
-		        observation, reward, done, info = self.env.step(action) 
-
-		        reward_batch.append(reward)
-		        action_batch.append(action)
-		        observation_batch = np.vstack((observation.reshape((1, -1)), observation_batch))
-		      
-
-		        if done:
-		            nb_env += 1
-		            observation = self.env.reset()
-		        
-		        with settings.T.get_lock():
-		            settings.T.value += 1
-		        
-		        t += 1
-
-		        if epsilon>0.01:
-		            epsilon -= (self.epsilon_ini - 0.01)/25000
-		    
-		    if done:
-		        R = 0
-		    else:
-		        R = self.qnn.best_reward(observation, self.sess, self.weighted)
-
-		    true_reward = []
-		    for i in range(t - 1, t_init - 1, -1):
-		        R = reward_batch[i] + self.gamma * R
-		        true_reward.append(R)
-
-		    action_batch.reverse()
-		    action_batch_multiplier = np.eye(self.output_size)[action_batch].T
-		    
-		    y_batch_arr = np.array(true_reward).reshape((-1, 1))
-
-		    shuffle = range(len(y_batch_arr))
-		    np.random.shuffle(shuffle)
-		    
-		    self.qnn.read_value_from_theta(self.sess)
-		    
-		    feed_dict = {self.qnn.variables["input_observation"]: observation_batch[:-1, :][shuffle, :],
-		                 self.qnn.variables["y_true"]: y_batch_arr[shuffle, :], 
-		                 self.qnn.variables["y_action"]: action_batch_multiplier[:, shuffle]}
-		    self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
+			self.qnn.read_value_from_theta(self.sess)
 
 
-		    self.qnn.assign_value_to_theta(self.sess)
+			while (not done) & (t-t_init<=self.t_max):
+			
+				if self.verbose:
+					self.env.render()
+					if settings.T.value%5000 == 0:
+						print("T = %s"%settings.T.value)
+
+				self.qnn.read_value_from_theta(self.sess)
+
+				action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
+												self.sess, self.policy, self.weighted)
+
+				observation, reward, done, info = self.env.step(action) 
+
+				reward_batch.append(reward)
+				action_batch.append(action)
+				observation_batch = np.vstack((observation.reshape((1, -1)), observation_batch))
+				#print("reward_batch", reward_batch)
+				#print("action_batch", action_batch)
+				#print("observation_batch", observation_batch)
+			  
+
+				if done:
+					nb_env += 1
+					observation = self.env.reset()
+				
+				with settings.T.get_lock():
+					settings.T.value += 1
+				
+				t += 1
+
+				if epsilon>0.01:
+					epsilon -= (self.epsilon_ini - 0.01)/self.eps_fall
+			
+			if done:
+				R = 0
+			else:
+				R = self.qnn.best_reward(observation, self.sess, self.weighted)
+
+			true_reward = []
+			for i in range(t - 1, t_init - 1, -1):
+				R = reward_batch[i] + self.gamma * R
+				true_reward.append(R)
+
+			action_batch.reverse()
+			action_batch_multiplier = np.eye(self.output_size)[action_batch].T
+			
+			y_batch_arr = np.array(true_reward).reshape((-1, 1))
+
+			#print("fed_reward_batch", y_batch_arr)
+			#print("fed_action_batch", action_batch_multiplier)
+			#print("fed_observation_batch", observation_batch[:-1, :])
+
+			shuffle = range(len(y_batch_arr))
+			np.random.shuffle(shuffle)
+			
+			self.qnn.read_value_from_theta(self.sess)
+			
+			feed_dict = {self.qnn.variables["input_observation"]: observation_batch[1:, :][shuffle, :],
+						 self.qnn.variables["y_true"]: y_batch_arr[shuffle, :], 
+						 self.qnn.variables["y_action"]: action_batch_multiplier[:, shuffle]}
+			self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
+
+
+			self.qnn.assign_value_to_theta(self.sess)
 
 		return
