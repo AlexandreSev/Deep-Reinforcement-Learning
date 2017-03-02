@@ -130,7 +130,7 @@ def build_model(variables_dict, name="", input_size=4, output_size=2, n_hidden=2
 
 def build_loss(vf, actions, variables_dict, alpha_reg=0, beta_reg=0.01):
     import tensorflow as tf
-    loss_list_policy = tf.log(tf.matmul(actions, variables_dict["y_action"])) * (variables_dict["y_true"] - vf)
+    loss_list_policy = tf.log(tf.matmul(actions, variables_dict["y_action"]))
     loss_policy = tf.reduce_mean(loss_list_policy)
 
     loss_list_vf = tf.nn.l2_loss(vf - variables_dict["y_true"])
@@ -151,7 +151,7 @@ def build_loss(vf, actions, variables_dict, alpha_reg=0, beta_reg=0.01):
 
     return loss_policy, loss_vf
 
-def compute_gradients(loss_policy, loss_vf, variables_dict):
+def compute_gradients(loss_policy, loss_vf, vf, variables_dict):
     import tensorflow as tf
     grads = {}
     
@@ -162,10 +162,10 @@ def compute_gradients(loss_policy, loss_vf, variables_dict):
     policy_keys = [key for key in keys if "policy" in key]
     vf_keys = [key for key in keys if "vf" in key]
     for key in common_keys:
-        grads[key + "_grad_ph_policy"] = tf.gradients(loss_policy, [variables_dict[key]])[0]
+        grads[key + "_grad_ph_policy"] = tf.gradients(loss_policy, [variables_dict[key]])[0] * (variables_dict["y_true"] - vf)
         grads[key + "_grad_ph_vf"] = tf.gradients(loss_vf, [variables_dict[key]])[0]
     for key in policy_keys:
-        grads[key + "_grad_ph_policy"] = tf.gradients(loss_policy, [variables_dict[key]])[0]
+        grads[key + "_grad_ph_policy"] = tf.gradients(loss_policy, [variables_dict[key]])[0] * (variables_dict["y_true"] - vf)
     for key in vf_keys:
         grads[key + "_grad_ph_vf"] = tf.gradients(loss_vf, [variables_dict[key]])[0]
 
@@ -298,7 +298,7 @@ class slave_worker(mp.Process):
                                                                                     hidden_size=model_option["hidden_size"])
         self.loss_policy, self.loss_vf = build_loss(self.variables_dict["values"], self.variables_dict["actions"],
                                                     self.variables_dict)
-        self.gradients = compute_gradients(self.loss_policy, self.loss_vf, self.variables_dict)
+        self.gradients = compute_gradients(self.loss_policy, self.loss_vf, self.variables_dict["values"], self.variables_dict)
         self.train_step = build_train_step(self.variables_dict, learning_rate=learning_rate)
             
         
