@@ -13,14 +13,15 @@ def epsilon_greedy_policy(qnn, observation, epsilon, env, sess, policy=None, wei
 		sess: tensorflow Session
 		policy: policy to take a random action. If None, take a uniform law
 	"""
-	if np.random.binomial(1, epsilon):
+	u = np.random.binomial(1, epsilon)
+	if u:
 		if policy is None:
-			return env.action_space.sample()
+			return 1, env.action_space.sample()
 		else:
 			action = policy()
-			return action
+			return 1, action
 	else:
-		return qnn.best_action(observation, sess, weighted)
+		return 0, qnn.best_action(observation, sess, weighted)
 
 def create_list_epsilon(n):
 	"""

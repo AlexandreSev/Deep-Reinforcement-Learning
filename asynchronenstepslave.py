@@ -6,6 +6,7 @@ import multiprocessing as mp
 import numpy as np
 from utils import epsilon_greedy_policy
 import settings
+import callback as cb
 
 class slave_worker_n_step(mp.Process):
 	"""
@@ -16,7 +17,8 @@ class slave_worker_n_step(mp.Process):
 	def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, Iasyncupdate=10,
 				 env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
 				 verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, 
-				 weighted=False, eps_fall=50000, **kwargs):
+				 weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
+				 callback_batch_size=100, **kwargs):
 		"""
 		Parameters:
 			T_max: maximum number of iterations
@@ -45,6 +47,12 @@ class slave_worker_n_step(mp.Process):
 		self.epsilon_ini = epsilon_ini
 		self.weighted = weighted
 		self.eps_fall = eps_fall
+
+		if callback:
+			self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
+									observation_size=self.input_size)
+		else:
+			self.callback = None
 
 		if policy is None:
 			self.policy = self.env.action_space.sample
@@ -98,13 +106,17 @@ class slave_worker_n_step(mp.Process):
 
 				self.qnn.read_value_from_theta(self.sess)
 
-				action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
+				random, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
 												self.sess, self.policy, self.weighted)
 
 				observation, reward, done, info = self.env.step(action) 
 
 				reward_batch.append(reward)
 				action_batch.append(action)
+
+				if self.callback:
+					self.callback.store(reward, random, action, observation_batch[0])
+
 				observation_batch = np.vstack((observation.reshape((1, -1)), observation_batch))
 				#print("reward_batch", reward_batch)
 				#print("action_batch", action_batch)
@@ -153,6 +165,9 @@ class slave_worker_n_step(mp.Process):
 			self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
 
 
-			self.qnn.assign_value_to_theta(self.sess)
+			diff = self.qnn.assign_value_to_theta(self.sess)
+
+			if self.callback:
+				self.callback.store_diff(diff)
 
 		return

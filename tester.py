@@ -114,7 +114,7 @@ class tester_worker(mp.Process):
                     for i, theta_minus in enumerate(settings.l_theta_minus):
                         settings.l_theta_minus[i] = settings.l_theta[i]
 
-                action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
+                _, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
                                                self.sess, self.policy, self.weighted)
 
                 observation, reward, done, info = self.env.step(action) 
@@ -130,7 +130,7 @@ class tester_worker(mp.Process):
                 self.add_history(current_reward)
             else:
                 self.last_T = settings.T.value
-                self.qnn.read_value_from_theta(self.sess)
+            self.qnn.read_value_from_theta(self.sess)
 
         print("Training completed")
         saver.save(self.sess, './end_training.weights')

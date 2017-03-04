@@ -54,6 +54,8 @@ class QNeuralNetwork():
 		self.alpha_reg = alpha_reg
 		self.beta_reg = beta_reg
 
+		self.theta_copy = []
+
 	def initialisation(self):
 		"""
 		Create the neural network, the loss and the train step
@@ -248,8 +250,12 @@ class QNeuralNetwork():
 		keys.sort()
 		keys = [ key for key in keys if critere_keys(key, minus=False)]
 
+		diff = 0
 		for i, key in enumerate(keys):
-			settings.l_theta[i] = sess.run(self.variables[key])
+			diff_temp = sess.run(self.variables[key]) - self.theta_copy[i]
+			settings.l_theta[i] += diff_temp
+			diff += np.linalg.norm(diff_temp)
+		return diff
 		
 	def read_value_from_theta(self, sess):
 		"""
@@ -261,11 +267,13 @@ class QNeuralNetwork():
 
 		assert(self.initialised, "This model must be initialised (self.initialisation()).")
 
+		self.theta_copy = []
 		keys = self.variables.keys()
 		keys.sort()
 		keys = [ key for key in keys if critere_keys(key, minus=False)]
 
 		for i, key in enumerate(keys):
+			self.theta_copy.append(settings.l_theta[i])
 			feed_dict = {self.variables[key + "_ph"]: settings.l_theta[i]}
 			sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)
 
