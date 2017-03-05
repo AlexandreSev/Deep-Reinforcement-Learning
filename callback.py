@@ -50,11 +50,13 @@ class callback():
 		self.rpe.append(rpe)
 
 	def write_on_disk(self):
+		self.data = [self.rewards, self.random, self.action, self.observation, self.diff, self.rpe]
 		self.diff = np.array(self.diff)
 		for data, name in zip(self.data, self.list_directory):
 			with open(pjoin(self.saving_directory, name), 'ab') as writer:
 				np.savetxt(writer, data, delimiter=";")
 		self.counter = 0
 		self.diff = []
+		print(self.rpe)
 		self.rpe = []
 

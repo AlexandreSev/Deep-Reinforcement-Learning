@@ -6,6 +6,7 @@ import multiprocessing as mp
 import numpy as np
 from utils import epsilon_greedy_policy
 import settings
+import callback as cb
 
 class slave_worker_1_step(mp.Process):
 	"""
@@ -16,7 +17,8 @@ class slave_worker_1_step(mp.Process):
 	def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, Iasyncupdate=10,
 				 env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
 				 verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, 
-				 weighted=False, eps_fall=50000, **kwargs):
+				 weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
+				 callback_batch_size=100, **kwargs):
 		"""
 		Parameters:
 			T_max: maximum number of iterations
@@ -45,6 +47,12 @@ class slave_worker_1_step(mp.Process):
 		self.weighted = weighted
 		self.Iasyncupdate = Iasyncupdate
 		self.eps_fall = eps_fall
+
+		if callback:
+			self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
+									observation_size=self.input_size)
+		else:
+			self.callback = None
 
 		if policy is None:
 			self.policy = self.env.action_space.sample
@@ -75,6 +83,7 @@ class slave_worker_1_step(mp.Process):
 		y_batch = []
 		nb_env = 0
 		firstiter=True
+		rpe = 0
 
 		observation = self.env.reset()
 
@@ -90,16 +99,24 @@ class slave_worker_1_step(mp.Process):
 
 			self.qnn.read_value_from_theta(self.sess)
 
-			action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
+			random, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
 											self.sess, self.policy, self.weighted)
 
 			observationprime, reward, done, info = self.env.step(action) 
+
+			rpe += reward
+
+			if self.callback:
+					self.callback.store(reward, random, action, observation)
 
 			if done:
 				y = reward
 				observationprime = self.env.reset()
 				t_init = t + 1
 				nb_env += 1
+				if self.callback:
+					self.callback.store_rpe(rpe)
+				rpe = 0
 			else:
 				y = reward + self.gamma * self.qnn.best_reward(observationprime, self.sess, 
 																self.weighted)
@@ -138,7 +155,10 @@ class slave_worker_1_step(mp.Process):
 							 self.qnn.variables["y_action"]: action_batch_multiplier[:, shuffle]}
 				self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
 
-				self.qnn.assign_value_to_theta(self.sess)
+				diff = self.qnn.assign_value_to_theta(self.sess)
+
+				if self.callback:
+					self.callback.store_diff(diff)
 
 				firstiter = True
 				y_batch = []
