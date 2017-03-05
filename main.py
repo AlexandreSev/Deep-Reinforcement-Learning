@@ -88,12 +88,12 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 
 if __name__=="__main__":
     args = sys.argv
-    np.random.seed(42)
+    #np.random.seed(42)
     if len(args)>2:
         main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
             render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
             weighted=False, algo="nstep", eps_fall=2500)
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
-            render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
-            weighted=False, algo="nstep", eps_fall=2500, callback=True)
+            render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.01, 
+            weighted=False, algo="nstep", eps_fall=10000, callback=True)

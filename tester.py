@@ -37,6 +37,7 @@ class tester_worker(mp.Process):
         self.input_size = self.env.observation_space.shape[0]
         self.nb_env = 0
         self.Itarget = Itarget
+        self.counter_T = Itarget
         self.render=render
         self.weighted=weighted
         
@@ -110,7 +111,8 @@ class tester_worker(mp.Process):
                     self.env.render()
 
                 t += 1
-                if settings.T.value %self.Itarget == 0:
+                if settings.T.value >= self.counter_T:
+                    self.counter_T += self.Itarget
                     for i, theta_minus in enumerate(settings.l_theta_minus):
                         settings.l_theta_minus[i] = settings.l_theta[i]
 

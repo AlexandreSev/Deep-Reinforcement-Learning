@@ -1,5 +1,5 @@
-0. Coder RMSPROP car faux, cf callbacks
+0. Résoudre bug sur n step, cf dashboard
 1. Coder A3C
 2. Refacto codes pour améliorer la lisibilité DONE
-3. Ajout de callbacks pour suivre les évolutions DONE
+3. Ajout de callbacks pour suivre les évolutions sur 1 step
 4. Réussir Acrobot-v1

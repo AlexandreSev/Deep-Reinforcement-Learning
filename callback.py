@@ -15,10 +15,12 @@ class callback():
 		self.action = np.zeros(batch_size)
 		self.observation = np.zeros((batch_size, observation_size))
 		self.diff = []
+		self.rpe = []
 
 		self.saving_directory = saving_directory
-		self.list_directory = ["rewards.csv", "random.csv", "action.csv", "observation.csv", "diff.csv"]
-		self.data = [self.rewards, self.random, self.action, self.observation, self.diff]
+		self.list_directory = ["rewards.csv", "random.csv", "action.csv", "observation.csv", 
+								"diff.csv", "rpe.csv"]
+		self.data = [self.rewards, self.random, self.action, self.observation, self.diff, self.rpe]
 		self.init()
 
 
@@ -44,6 +46,9 @@ class callback():
 	def store_diff(self, diff):
 		self.diff.append(diff)
 
+	def store_rpe(self, rpe):
+		self.rpe.append(rpe)
+
 	def write_on_disk(self):
 		self.diff = np.array(self.diff)
 		for data, name in zip(self.data, self.list_directory):
@@ -51,4 +56,5 @@ class callback():
 				np.savetxt(writer, data, delimiter=";")
 		self.counter = 0
 		self.diff = []
+		self.rpe = []
 

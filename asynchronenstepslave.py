@@ -80,6 +80,7 @@ class slave_worker_n_step(mp.Process):
 
 		epsilon = self.epsilon_ini
 		nb_env = 0
+		rpe = 0
 
 		observation = self.env.reset()
 
@@ -111,6 +112,8 @@ class slave_worker_n_step(mp.Process):
 
 				observation, reward, done, info = self.env.step(action) 
 
+				rpe += reward
+
 				reward_batch.append(reward)
 				action_batch.append(action)
 
@@ -126,6 +129,9 @@ class slave_worker_n_step(mp.Process):
 				if done:
 					nb_env += 1
 					observation = self.env.reset()
+					if self.callback:
+						self.callback.store_rpe(rpe)
+					rpe = 0
 				
 				with settings.T.get_lock():
 					settings.T.value += 1
@@ -147,7 +153,6 @@ class slave_worker_n_step(mp.Process):
 
 			action_batch.reverse()
 			action_batch_multiplier = np.eye(self.output_size)[action_batch].T
-			
 			y_batch_arr = np.array(true_reward).reshape((-1, 1))
 
 			#print("fed_reward_batch", y_batch_arr)

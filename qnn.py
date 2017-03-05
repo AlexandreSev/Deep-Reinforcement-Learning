@@ -173,9 +173,15 @@ class QNeuralNetwork():
 			l2_reg += tf.nn.l2_loss(self.variables[key])
 
 		self.loss = reduce_loss + self.alpha_reg * l1_reg + self.beta_reg * l2_reg
+
+
+		self.global_step = tf.Variable(0, trainable=False)
+		self.decay_learning_rate = tf.train.inverse_time_decay(self.learning_rate, self.global_step, 
+								    1, 0.001)
+
 		
-		self.train_step = tf.train.RMSPropOptimizer(self.learning_rate, decay=0.99, momentum=0.5, 
-												centered=True).minimize(self.loss)
+		self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate).minimize(self.loss, 
+						global_step=self.global_step)
 
 	def best_choice(self, observation, sess):
 		"""
