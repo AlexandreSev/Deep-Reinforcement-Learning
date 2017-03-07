@@ -132,7 +132,7 @@ class tester_worker(mp.Process):
                 self.add_history(current_reward)
             else:
                 self.last_T = settings.T.value
-            self.qnn.read_value_from_theta(self.sess)
+                self.qnn.read_value_from_theta(self.sess)
 
         print("Training completed")
         saver.save(self.sess, './end_training.weights')

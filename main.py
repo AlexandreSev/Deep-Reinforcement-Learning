@@ -95,5 +95,5 @@ if __name__=="__main__":
             weighted=False, algo="nstep", eps_fall=2500)
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
-            render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.01, 
+            render=True, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.01, 
             weighted=False, algo="nstep", eps_fall=10000, callback=True)
