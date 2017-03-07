@@ -6,6 +6,7 @@ from utils import *
 from asynchronenstepslave import slave_worker_n_step
 from asynchrone1stepslave import slave_worker_1_step
 from asynchrone1stepsarsaslave import slave_worker_1_step_sarsa
+from asynchronea3cslave import slave_worker_a3c
 from tester import tester_worker
 from settings import init
 import numpy as np
@@ -42,7 +43,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 
 	env_temp = gym.make(env_name)
 
-	init(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
+	init(algo=algo, n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
 	     input_size= env_temp.observation_space.shape[0], output_size=env_temp.action_space.n)
 
 	jobs = []
@@ -61,6 +62,8 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 		slave_worker=slave_worker_1_step
 	elif algo == "1stepsarsa":
 		slave_worker = slave_worker_1_step_sarsa
+	elif algo == "a3c":
+		slave_worker = slave_worker_a3c
 	else:
 		raise Exception("Not understood algorithm")
 
@@ -76,7 +79,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 	    jobs.append(job)
 
 
-	exemple = tester_worker(T_max=T_max, t_max=200, model_option=model_option, env_name=env_name, 
+	exemple = tester_worker(algo=algo, T_max=T_max, t_max=500, model_option=model_option, env_name=env_name, 
 	                        n_sec_print=n_sec_print, goal=goal, len_history=len_history, Itarget=Itarget,
 	                        render=render, weighted=weighted)
 	exemple.start()
@@ -92,8 +95,8 @@ if __name__=="__main__":
     if len(args)>2:
         main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
             render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
-            weighted=False, algo="nstep", eps_fall=2500)
+			weighted=False, algo="nstep", eps_fall=2500)
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
-            render=True, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.01, 
+            render=True, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
             weighted=False, algo="nstep", eps_fall=10000, callback=True)
