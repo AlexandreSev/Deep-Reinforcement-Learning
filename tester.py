@@ -3,6 +3,7 @@ import time
 import gym
 import numpy as np
 from qnn import QNeuralNetwork
+from a3cnn import A3CNeuralNetwork
 from utils import epsilon_greedy_policy
 import multiprocessing as mp
 import settings
@@ -12,7 +13,7 @@ class tester_worker(mp.Process):
     Worker wich will test if the environment is solved. It will also update theta minus.
     """
     
-    def __init__(self, T_max=100000, t_max=200, env_name="CartPole-v0", 
+    def __init__(self, algo="nstep", T_max=100000, t_max=200, env_name="CartPole-v0", 
                 model_option={"n_hidden":1, "hidden_size":[10]}, n_sec_print=10, 
                 goal=195, len_history=100, Itarget=15, render=False, weighted=False, **kwargs):
         """
@@ -40,9 +41,14 @@ class tester_worker(mp.Process):
         self.counter_T = Itarget
         self.render=render
         self.weighted=weighted
+        self.algo = algo
         
-        self.qnn = QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
-                n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
+        if algo=="a3c":
+            self.nn = A3CNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
+                    n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
+        else:
+            self.nn = QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
+                    n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
 
         self.history = [-1000 for i in range(len_history)]
         self.goal = goal
@@ -80,13 +86,13 @@ class tester_worker(mp.Process):
         import tensorflow as tf
         t_taken = time.time()
 
-        self.qnn.initialisation()
+        self.nn.initialisation()
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
 
-        self.qnn.read_value_from_theta(self.sess)
+        self.nn.read_value_from_theta(self.sess)
         saver.save(self.sess, './ptb_rnnlm.weights')
 
         observation = self.env.reset()
@@ -111,13 +117,14 @@ class tester_worker(mp.Process):
                     self.env.render()
 
                 t += 1
-                if settings.T.value >= self.counter_T:
+
+                if self.algo != "a3c" and settings.T.value >= self.counter_T:
                     self.counter_T += self.Itarget
                     for i, theta_minus in enumerate(settings.l_theta_minus):
                         settings.l_theta_minus[i] = settings.l_theta[i]
 
-                _, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
-                                               self.sess, self.policy, self.weighted)
+                _, action = epsilon_greedy_policy(self.nn, observation, epsilon, self.env,
+                                                  self.sess, self.policy, self.weighted)
 
                 observation, reward, done, info = self.env.step(action) 
 
@@ -132,7 +139,8 @@ class tester_worker(mp.Process):
                 self.add_history(current_reward)
             else:
                 self.last_T = settings.T.value
-            self.qnn.read_value_from_theta(self.sess)
+
+            self.nn.read_value_from_theta(self.sess)
 
         print("Training completed")
         saver.save(self.sess, './end_training.weights')
@@ -150,7 +158,7 @@ class tester_worker(mp.Process):
                 t += 1
                 self.env.render()
 
-                action = self.qnn.best_action(observation, self.sess)
+                action = self.nn.best_action(observation, self.sess)
 
                 observation, reward, done, info = self.env.step(action) 
 
