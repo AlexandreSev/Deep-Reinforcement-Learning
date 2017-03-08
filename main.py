@@ -1,15 +1,19 @@
 # coding: utf-8
-import multiprocessing as mp
-import gym
-import sys
-from utils import *
-from asynchronenstepslave import slave_worker_n_step
-from asynchrone1stepslave import slave_worker_1_step
-from asynchrone1stepsarsaslave import slave_worker_1_step_sarsa
-from asynchronea3cslave import slave_worker_a3c
-from tester import tester_worker
-from settings import init
 import numpy as np
+import multiprocessing as mp
+import sys
+import gym
+
+from DRL.utils.utils import *
+
+from DRL.slaves.asynchronenstepslave import slave_worker_n_step
+from DRL.slaves.asynchrone1stepslave import slave_worker_1_step
+from DRL.slaves.asynchrone1stepsarsaslave import slave_worker_1_step_sarsa
+from DRL.slaves.asynchronea3cslave import slave_worker_a3c
+from DRL.slaves.tester import tester_worker
+
+from DRL.utils.settings import init
+
 
 
 def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
@@ -43,8 +47,12 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 
 	env_temp = gym.make(env_name)
 
+	init(n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
+	     input_size= env_temp.observation_space.shape[0], output_size=env_temp.action_space.n)
+	"""
 	init(algo=algo, n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
 	     input_size= env_temp.observation_space.shape[0], output_size=env_temp.action_space.n)
+	"""
 
 	jobs = []
 	policies = [None for i in range(nb_process)]
@@ -98,5 +106,5 @@ if __name__=="__main__":
 			weighted=False, algo="nstep", eps_fall=2500)
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
-            render=True, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
+            render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
             weighted=False, algo="nstep", eps_fall=10000, callback=True)
