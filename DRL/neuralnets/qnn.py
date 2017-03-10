@@ -28,7 +28,7 @@ class QNeuralNetwork():
 	"""
 
 	def __init__(self, input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64], 
-				learning_rate=0.001, alpha_reg=0.001, beta_reg=0.001):
+				learning_rate=0.001, alpha_reg=0., beta_reg=0.01):
 		"""
 		Parameters:
 			input_size: size of observations, only 1D array are accepted for now
@@ -176,12 +176,12 @@ class QNeuralNetwork():
 
 
 		self.global_step = tf.Variable(0, trainable=False)
-		self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate, self.global_step,
-                                           1, 0.999)
+		self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
+			global_step=self.global_step, decay_steps=1, decay_rate=0.999)
 
 		
-		self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate).minimize(self.loss, 
-						global_step=self.global_step)
+		self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate,
+			decay=0.99, momentum=0.5, centered=True).minimize(self.loss, global_step=self.global_step)
 
 	def best_choice(self, observation, sess):
 		"""

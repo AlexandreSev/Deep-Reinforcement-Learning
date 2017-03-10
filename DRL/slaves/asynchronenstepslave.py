@@ -18,7 +18,7 @@ class slave_worker_n_step(mp.Process):
 
 	def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, Iasyncupdate=10,
 				 env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
-				 verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, 
+				 verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.01, 
 				 weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
 				 callback_batch_size=100, **kwargs):
 		"""
@@ -118,7 +118,7 @@ class slave_worker_n_step(mp.Process):
 				observation, reward, done, info = self.env.step(action) 
 
 				t_env +=1
-				if t_env >200:
+				if t_env >500:
 					done = True
 					t_env = 0
 

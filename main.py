@@ -102,8 +102,8 @@ if __name__=="__main__":
     #np.random.seed(42)
     if len(args)>2:
         main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
-            render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
-			weighted=False, algo="nstep", eps_fall=2500)
+            render=False, master=False, env_name="CartPole-v0", goal=495, learning_rate=0.001, 
+			weighted=False, algo="nstep", eps_fall=10000, callback=True)
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
             render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
