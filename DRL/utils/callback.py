@@ -6,7 +6,7 @@ from os.path import join as pjoin
 
 class callback():
 
-	def __init__(self, batch_size=100, saving_directory="./", observation_size=4):
+	def __init__(self, batch_size=100, saving_directory="./", observation_size=4, action_size=2):
 
 		self.batch_size = batch_size
 		self.counter = 0
@@ -20,7 +20,6 @@ class callback():
 		self.saving_directory = saving_directory
 		self.list_directory = ["rewards.csv", "random.csv", "action.csv", "observation.csv", 
 								"diff.csv", "rpe.csv"]
-		self.data = [self.rewards, self.random, self.action, self.observation, self.diff, self.rpe]
 		self.init()
 
 
@@ -33,7 +32,7 @@ class callback():
 
 
 
-	def store(self, reward, random, action, observation):
+	def store(self, reward, random, action, observation, rewards):
 		self.rewards[self.counter] = reward
 		self.random[self.counter] = random
 		self.action[self.counter] = action

@@ -52,7 +52,7 @@ class slave_worker_n_step(mp.Process):
 
 		if callback:
 			self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
-									observation_size=self.input_size)
+									observation_size=self.input_size, action_size=self.output_size)
 		else:
 			self.callback = None
 
@@ -89,6 +89,7 @@ class slave_worker_n_step(mp.Process):
 
 		rewards_env = []
 		estimated_rewards_env = []
+		rewards = []
 
 		while settings.T.value<self.T_max:
 
@@ -118,20 +119,17 @@ class slave_worker_n_step(mp.Process):
 				observation, reward, done, info = self.env.step(action) 
 
 				t_env +=1
-				if t_env >500:
-					done = True
-					t_env = 0
-
+				
 				if self.callback:
 					rewards_env.append(reward)
-
+					rewards.append(self.qnn.get_reward(observation, self.sess))
 					rpe += reward
 
 				reward_batch.append(reward)
 				action_batch.append(action)
 
 				if self.callback:
-					self.callback.store(reward, random, action, observation_batch[0])
+					self.callback.store(reward, random, action, observation_batch[0], rewards)
 
 				observation_batch = np.vstack((observation.reshape((1, -1)), observation_batch))
 				#print("reward_batch", reward_batch)
@@ -167,14 +165,16 @@ class slave_worker_n_step(mp.Process):
 			if self.callback:
 				estimated_rewards_env += true_reward[::-1]
 				if done:
-					history = np.zeros((len(estimated_rewards_env), 4))
+					history = np.zeros((len(estimated_rewards_env), 4 + self.output_size))
 					history[:, 0] = np.arange(len(estimated_rewards_env))
 					history[:, 1] = rewards_env
 					history[:, 2] = estimated_rewards_env
 					history[:, 3] = nb_env * np.ones(len(estimated_rewards_env))
+					history[:, 4:] = np.array(rewards)
 					self.callback.write_history(history)
 					rewards_env = []
 					estimated_rewards_env = []
+					rewards = []
 
 
 			action_batch.reverse()

@@ -177,11 +177,16 @@ class QNeuralNetwork():
 
 		self.global_step = tf.Variable(0, trainable=False)
 		self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
-			global_step=self.global_step, decay_steps=1, decay_rate=0.999)
+			global_step=self.global_step, decay_steps=5, decay_rate=0.999)
 
 		
 		self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate,
 			decay=0.99, momentum=0.5, centered=True).minimize(self.loss, global_step=self.global_step)
+
+	def get_reward(self, observation, sess):
+		feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
+		reward = np.squeeze(sess.run(self.variables["y"], feed_dict=feed_dic))
+		return reward
 
 	def best_choice(self, observation, sess):
 		"""
@@ -191,8 +196,7 @@ class QNeuralNetwork():
 			sess: tensorflow session, allow multiprocessing
 		"""
 		assert self.initialised, "This model must be initialised (self.initialisation())"
-		feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-		reward = np.squeeze(sess.run(self.variables["y"], feed_dict=feed_dic))
+		reward = self.get_reward(observation, sess)
 	  
 		return np.argmax(reward), np.max(reward)
 
