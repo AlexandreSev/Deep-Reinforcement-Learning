@@ -89,7 +89,8 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 
 	exemple = tester_worker(algo=algo, T_max=T_max, t_max=200, model_option=model_option, env_name=env_name, 
 	                        n_sec_print=n_sec_print, goal=goal, len_history=len_history, Itarget=Itarget,
-	                        render=render, weighted=weighted)
+	                        render=render, weighted=weighted, callback=callback, 
+	        				callback_name="callbacks/tester")
 	exemple.start()
 	exemple.join()
 
@@ -102,9 +103,9 @@ if __name__=="__main__":
     #np.random.seed(42)
     if len(args)>2:
         main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
-            render=False, master=False, env_name="CartPole-v0", goal=495, learning_rate=0.001, 
+            render=False, master=False, env_name="CartPole-v1", goal=495, learning_rate=0.001, 
 			weighted=False, algo="nstep", eps_fall=10000, callback=True)
     else:
-        main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 256]}, 
+		main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 256]}, 
             render=False, master=False, env_name="CartPole-v0", goal=195, learning_rate=0.001, 
             weighted=False, algo="nstep", eps_fall=10000, callback=True)

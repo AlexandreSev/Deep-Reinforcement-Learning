@@ -8,6 +8,7 @@ from ..neuralnets import a3cnn, qnn
 from ..utils.utils import epsilon_greedy_policy
 
 from ..utils import settings
+from ..utils import callback as cb
 
 class tester_worker(mp.Process):
     """
@@ -16,7 +17,8 @@ class tester_worker(mp.Process):
     
     def __init__(self, algo="nstep", T_max=100000, t_max=200, env_name="CartPole-v0", 
                 model_option={"n_hidden":1, "hidden_size":[10]}, n_sec_print=10, 
-                goal=195, len_history=100, Itarget=15, render=False, weighted=False, **kwargs):
+                goal=195, len_history=100, Itarget=15, render=False, weighted=False,
+                callback=None, callback_name="callbacks/tester", callback_batch_size=10, **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -58,6 +60,12 @@ class tester_worker(mp.Process):
         self.last_T = 0
         self.n_sec_print = n_sec_print
         self.policy=None
+
+        if callback:
+            self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
+                                        observation_size=self.input_size)
+        else:
+            self.callback = None
 
     def add_history(self, reward):
         """
@@ -127,17 +135,27 @@ class tester_worker(mp.Process):
                 _, action = epsilon_greedy_policy(self.nn, observation, epsilon, self.env,
                                                   self.sess, self.policy, self.weighted)
 
-                observation, reward, done, info = self.env.step(action) 
+                observation_prime, reward, done, info = self.env.step(action) 
 
                 current_reward += reward
+
+                if self.callback:
+                    self.callback.store(reward, 0, action, observation)
 
                 if done:
                     observation = self.env.reset()
                     self.add_history(current_reward)
                     t += self.T_max
+                    if self.callback:
+                        self.callback.store_rpe(current_reward)
+                else:
+                    observation = observation_prime
+
             if not done:
                 observation = self.env.reset()
                 self.add_history(current_reward)
+                if self.callback:
+                    self.callback.store_rpe(current_reward)
             else:
                 self.last_T = settings.T.value
             self.nn.read_value_from_theta(self.sess)
