@@ -47,6 +47,7 @@ class slave_worker_n_step(mp.Process):
 		self.input_size = self.env.observation_space.shape[0]
 		self.verbose = verbose
 		self.epsilon_ini = epsilon_ini
+		self.learning_rate_ini = learning_rate
 		self.weighted = weighted
 		self.eps_fall = eps_fall
 
@@ -142,6 +143,7 @@ class slave_worker_n_step(mp.Process):
 					observation = self.env.reset()
 					if self.callback:
 						self.callback.store_rpe(rpe)
+						self.callback.store_hp(epsilon, self.sess.run(self.qnn.decay_learning_rate))
 					rpe = 0
 				
 				with settings.T.get_lock():
@@ -149,8 +151,10 @@ class slave_worker_n_step(mp.Process):
 				
 				t += 1
 
-				if epsilon>0.01:
-					epsilon -= (self.epsilon_ini - 0.01)/self.eps_fall
+				if epsilon>0.1:
+					epsilon -= (self.epsilon_ini - 0.1)/self.eps_fall
+				else:
+					epsilon = .3
 			
 			if done:
 				R = 0
