@@ -158,7 +158,7 @@ class QNeuralNetwork():
 		"""
 		import tensorflow as tf
 
-		y_1d = tf.reduce_sum(self.variables["y"] * self.variables["y_action"], axis=1)
+		y_1d = tf.reduce_sum(tf.multiply(self.variables["y"], self.variables["y_action"]), axis=1)
 		loss = tf.nn.l2_loss(y_1d - self.variables["y_true"])
 
 		l1_reg = 0
