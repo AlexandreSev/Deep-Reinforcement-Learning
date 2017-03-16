@@ -15,9 +15,9 @@ class tester_worker(mp.Process):
     Worker wich will test if the environment is solved. It will also update theta minus.
     """
     
-    def __init__(self, algo="nstep", T_max=100000, t_max=200, env_name="CartPole-v0", 
+    def __init__(self, algo="nstep", T_max=100000, t_max=500, env_name="CartPole-v0", 
                 model_option={"n_hidden":1, "hidden_size":[10]}, n_sec_print=10, 
-                goal=195, len_history=100, Itarget=15, render=False, weighted=False,
+                goal=495, len_history=100, Itarget=15, render=False, weighted=False,
                 callback=None, callback_name="callbacks/tester", callback_batch_size=10, **kwargs):
         """
         Parameters:
@@ -140,7 +140,7 @@ class tester_worker(mp.Process):
                 current_reward += reward
 
                 if self.callback:
-                    self.callback.store(reward, 0, action, observation)
+                    self.callback.store(reward, 0, action, observation, 0)
 
                 if done:
                     observation = self.env.reset()

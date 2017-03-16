@@ -151,10 +151,8 @@ class slave_worker_n_step(mp.Process):
 				
 				t += 1
 
-				if epsilon>0.1:
-					epsilon -= (self.epsilon_ini - 0.1)/self.eps_fall
-				else:
-					epsilon = .3
+				if epsilon>0.01:
+					epsilon -= (self.epsilon_ini - 0.01)/self.eps_fall
 			
 			if done:
 				R = 0
@@ -182,8 +180,8 @@ class slave_worker_n_step(mp.Process):
 
 
 			action_batch.reverse()
-			action_batch_multiplier = np.eye(self.output_size)[action_batch].T
-			y_batch_arr = np.array(true_reward).reshape((-1, 1))
+			action_batch_multiplier = np.eye(self.output_size)[action_batch]
+			y_batch_arr = np.array(true_reward)
 
 			#print("fed_reward_batch", y_batch_arr)
 			#print("fed_action_batch", action_batch_multiplier)
@@ -195,8 +193,8 @@ class slave_worker_n_step(mp.Process):
 			self.qnn.read_value_from_theta(self.sess)
 			
 			feed_dict = {self.qnn.variables["input_observation"]: observation_batch[1:, :][shuffle, :],
-						 self.qnn.variables["y_true"]: y_batch_arr[shuffle, :], 
-						 self.qnn.variables["y_action"]: action_batch_multiplier[:, shuffle]}
+						 self.qnn.variables["y_true"]: y_batch_arr[shuffle], 
+						 self.qnn.variables["y_action"]: action_batch_multiplier[shuffle, :]}
 			self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
 
 
