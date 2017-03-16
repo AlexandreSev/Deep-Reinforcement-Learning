@@ -130,9 +130,9 @@ class QNeuralNetwork():
 		self.variables["input_observation"] = tf.placeholder(tf.float32, 
 			shape=[None, self.input_size], name="i_observation")
 
-		self.variables["y_true"] = tf.placeholder(tf.float32, shape=[None, 1], name="y_true")
+		self.variables["y_true"] = tf.placeholder(tf.float32, shape=[None], name="y_true")
 
-		self.variables["y_action"] = tf.placeholder(tf.float32, shape=[self.output_size, None], 
+		self.variables["y_action"] = tf.placeholder(tf.float32, shape=[None, self.output_size], 
 			name="action")
 
 	def build_model(self, name=""):
@@ -158,9 +158,8 @@ class QNeuralNetwork():
 		"""
 		import tensorflow as tf
 
-		y_1d = tf.matmul(self.variables["y"], self.variables["y_action"])
+		y_1d = tf.reduce_sum(self.variables["y"] * self.variables["y_action"], axis=1)
 		loss = tf.nn.l2_loss(y_1d - self.variables["y_true"])
-		reduce_loss = tf.reduce_mean(loss)
 
 		l1_reg = 0
 		l2_reg = 0
@@ -172,12 +171,12 @@ class QNeuralNetwork():
 			l1_reg += tf.reduce_sum(tf.abs(self.variables[key]))
 			l2_reg += tf.nn.l2_loss(self.variables[key])
 
-		self.loss = reduce_loss + self.alpha_reg * l1_reg + self.beta_reg * l2_reg
+		self.loss = loss + self.alpha_reg * l1_reg + self.beta_reg * l2_reg
 
 
 		self.global_step = tf.Variable(0, trainable=False)
 		self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
-			global_step=self.global_step, decay_steps=5, decay_rate=0.999)
+			global_step=self.global_step, decay_steps=1, decay_rate=0.999)
 
 		
 		self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate,
@@ -197,7 +196,7 @@ class QNeuralNetwork():
 		"""
 		assert self.initialised, "This model must be initialised (self.initialisation())"
 		reward = self.get_reward(observation, sess)
-	  
+		
 		return np.argmax(reward), np.max(reward)
 
 	def weighted_choice(self, observation, sess):
@@ -208,8 +207,7 @@ class QNeuralNetwork():
 			sess: tensorflow session, allow multiprocessing
 		"""
 		assert self.initialised, "This model must be initialised (self.initialisation())"
-		feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-		reward = np.squeeze(sess.run(self.variables["y"], feed_dict=feed_dic))
+		reward = self.get_reward(observation, sess)
 
 		cor = max(-min(reward), 0)
 		reward = [i+cor for i in reward]
