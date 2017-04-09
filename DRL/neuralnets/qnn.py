@@ -179,11 +179,19 @@ class QNeuralNetwork():
     def reset_lr(self, sess, init=False):
         import tensorflow as tf
         
-        self.global_step = tf.Variable(0, trainable=False)
         if init:
+            self.global_step = tf.Variable(0, trainable=False)
+            self.global_step_assign = tf.assign(self.global_step, 0)
+
             self.decay_steps = tf.Variable(1, trainable=False)
+            self.decay_steps_pl = tf.placeholder(tf.int32)
+            self.decay_steps_assign = tf.assign(self.decay_steps, self.decay_steps_pl)
         else:
-            self.decay_steps = sess.run(self.decay_steps) * 2
+            print("Reset")
+            temp = sess.run(self.decay_steps) * 2
+            sess.run(self.global_step_assign)
+            sess.run(self.decay_steps_assign, feed_dict={self.decay_steps_pl: temp})
+        
         self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
             global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
 
