@@ -196,7 +196,7 @@ class QNeuralNetwork():
 		"""
 		assert self.initialised, "This model must be initialised (self.initialisation())"
 		reward = self.get_reward(observation, sess)
-		
+
 		return np.argmax(reward), np.max(reward)
 
 	def weighted_choice(self, observation, sess):

@@ -47,7 +47,7 @@ class tester_worker(mp.Process):
         self.algo = algo
         
         if algo=="a3c":
-            self.nn = ac3nn.A3CNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
+            self.nn = a3cnn.A3CNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
                     n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"])
         else:
             self.nn = qnn.QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 

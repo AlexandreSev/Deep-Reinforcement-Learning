@@ -47,7 +47,6 @@ class slave_worker_n_step(mp.Process):
 		self.input_size = self.env.observation_space.shape[0]
 		self.verbose = verbose
 		self.epsilon_ini = epsilon_ini
-		self.learning_rate_ini = learning_rate
 		self.weighted = weighted
 		self.eps_fall = eps_fall
 
@@ -81,7 +80,7 @@ class slave_worker_n_step(mp.Process):
 		self.qnn.read_value_from_theta(self.sess)
 		self.qnn.read_value_from_theta_minus(self.sess)
 
-		epsilon = self.epsilon_ini
+		epsilon = 1
 		nb_env = 0
 		rpe = 0
 		t_env = 0
@@ -151,8 +150,8 @@ class slave_worker_n_step(mp.Process):
 				
 				t += 1
 
-				if epsilon>0.01:
-					epsilon -= (self.epsilon_ini - 0.01)/self.eps_fall
+				if epsilon>self.epsilon_ini:
+					epsilon -= (1 - self.epsilon_ini)/self.eps_fall
 			
 			if done:
 				R = 0

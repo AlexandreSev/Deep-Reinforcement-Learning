@@ -30,13 +30,18 @@ def create_list_epsilon(n):
     Parameters:
         n: number of epsilons generated
     """
-    e_list = [1, 0.5]
-    p = [0.5, 0.5]
+    e_list = [0.1, 0.01, 0.5]
+    p = [0.4, 0.3, 0.3]
     return np.random.choice(e_list, n, p=p)
 
     e_max = 1
     e_min = 0.01
     return [e_min + i * (e_max-e_min) / n + (e_max-e_min) / (2*n) for i in range(n)]
+
+def create_list_lr(n):
+    lr_min = 2
+    lr_max = 4
+    return [10**(-x) for x in np.random.uniform(lr_min, lr_max, size=n)]
 
 def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
     """
