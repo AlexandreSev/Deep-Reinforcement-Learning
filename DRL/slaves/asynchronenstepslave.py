@@ -154,7 +154,7 @@ class slave_worker_n_step(mp.Process):
                     epsilon -= (1 - self.epsilon_ini)/self.eps_fall
 
                 if self.sess.run(self.qnn.decay_learning_rate) < 1e-5:
-                    self.qnn.reset_lr(selfself.sess)
+                    self.qnn.reset_lr(self.sess)
                     epsilon = 1
             
             if done:
