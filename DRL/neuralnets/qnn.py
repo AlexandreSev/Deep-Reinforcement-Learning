@@ -65,6 +65,7 @@ class QNeuralNetwork():
 		self.create_placeholders()
 		self.build_model(name="")
 		self.build_model(name="_minus")
+		self.reset_lr()
 		self.build_loss()
 		self.initialised = True
 
@@ -173,14 +174,15 @@ class QNeuralNetwork():
 
 		self.loss = loss + self.alpha_reg * l1_reg + self.beta_reg * l2_reg
 
-
-		self.global_step = tf.Variable(0, trainable=False)
-		self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
-			global_step=self.global_step, decay_steps=1, decay_rate=0.999)
-
-		
 		self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate,
 			decay=0.99, momentum=0.5, centered=True).minimize(self.loss, global_step=self.global_step)
+
+	def reset_lr(self, decay_steps=1):
+		import tensorflow as tf
+		
+		self.global_step = tf.Variable(0, trainable=False)
+		self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
+			global_step=self.global_step, decay_steps=decay_steps, decay_rate=0.9999)
 
 	def get_reward(self, observation, sess):
 		feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
