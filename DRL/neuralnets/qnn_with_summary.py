@@ -56,7 +56,7 @@ class QNeuralNetwork():
 
         self.theta_copy = []
 
-    def initialisation(self):
+    def initialisation(self, sess):
         """
         Create the neural network, the loss and the train step
         """
@@ -68,6 +68,16 @@ class QNeuralNetwork():
         self.reset_lr(None, True)
         self.build_loss()
         self.initialised = True
+        # self.create_summary(sess)
+
+    def create_summary(self, sess):
+        import tensorflow as tf
+
+        self.lr_summary = tf.summary.scalar("learning rate", self.decay_learning_rate)
+        self.loss_summary = tf.summary.scalar("loss", self.loss)
+        self.merged = tf.summary.merge_all()
+        self.writer = tf.summary.FileWriter('./callbacks/summaries/',
+                                      sess.graph)
 
     def create_weight_variable(self, shape, name="W"):
         """
@@ -173,7 +183,7 @@ class QNeuralNetwork():
 
         self.loss = loss + self.alpha_reg * l1_reg + self.beta_reg * l2_reg
 
-        self.train_step = tf.train.RMSPropOptimizer(0.0001, #self.decay_learning_rate,
+        self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate,
             decay=0.99, momentum=0.5, centered=True).minimize(self.loss, global_step=self.global_step)
 
     def reset_lr(self, sess, init=False):

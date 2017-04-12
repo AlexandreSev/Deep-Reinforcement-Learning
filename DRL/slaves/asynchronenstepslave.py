@@ -8,7 +8,7 @@ from ..utils.utils import epsilon_greedy_policy
 from ..utils import settings
 from ..utils import callback as cb
 
-from ..neuralnets import qnn
+from ..neuralnets import qnn_with_summary as qnn
 
 class slave_worker_n_step(mp.Process):
     """
@@ -20,7 +20,7 @@ class slave_worker_n_step(mp.Process):
                  env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.01, 
                  weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
-                 callback_batch_size=100, **kwargs):
+                 callback_batch_size=100, reset=False, seed=42, name="", **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -38,6 +38,8 @@ class slave_worker_n_step(mp.Process):
             beta_reg: coefficient of l2 regularisation
             kwargs: args of multiprocessing.Process
         """
+
+        np.random.seed(seed)
         super(slave_worker_n_step, self).__init__(**kwargs)
         self.T_max = T_max
         self.t_max = t_max
@@ -49,6 +51,10 @@ class slave_worker_n_step(mp.Process):
         self.epsilon_ini = epsilon_ini
         self.weighted = weighted
         self.eps_fall = eps_fall
+        self.reset = reset
+        self.deletion_to_T = 0
+        self.min_lr = 10e-5
+        self.name = name
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
@@ -72,9 +78,13 @@ class slave_worker_n_step(mp.Process):
         """
         import tensorflow as tf
 
-        self.qnn.initialisation()
-
         self.sess = tf.Session()
+        self.qnn.initialisation(self.sess)
+
+        if self.name == "0":
+            self.qnn.create_summary(self.sess)
+            self.qnn.writer.add_graph(self.sess.graph)
+        
         self.sess.run(tf.global_variables_initializer())
 
         self.qnn.read_value_from_theta(self.sess)
@@ -85,13 +95,16 @@ class slave_worker_n_step(mp.Process):
         rpe = 0
         t_env = 0
 
+        #VERIF
+        test = 0
+
         observation = self.env.reset()
 
         rewards_env = []
         estimated_rewards_env = []
         rewards = []
 
-        while settings.T.value<self.T_max:
+        while settings.T.value < self.T_max:
 
             t = 0
             t_init = t
@@ -106,10 +119,14 @@ class slave_worker_n_step(mp.Process):
 
 
             while (not done) & (t-t_init<=self.t_max):
+
                 if self.verbose:
                     self.env.render()
                     if settings.T.value%5000 == 0:
                         print("T = %s"%settings.T.value)
+
+                #verif
+                test += 1
 
                 self.qnn.read_value_from_theta(self.sess)
 
@@ -151,12 +168,24 @@ class slave_worker_n_step(mp.Process):
                 t += 1
 
                 if epsilon>self.epsilon_ini:
-                    epsilon -= (1 - self.epsilon_ini)/self.eps_fall
+                    epsilon = 1 - (settings.T.value - self.deletion_to_T) * \
+                                    (1. - self.epsilon_ini)/self.eps_fall
 
-                if self.sess.run(self.qnn.decay_learning_rate) < 1e-5:
-                    self.qnn.reset_lr(selfself.sess)
+                if (self.reset) & (self.sess.run(self.qnn.decay_learning_rate) < self.min_lr):
+                    self.qnn.reset_lr(self.sess)
                     epsilon = 1
-            
+                    self.eps_fall = settings.T.value - self.deletion_to_T
+                    self.deletion_to_T = settings.T.value
+                    #self.min_lr *= 0.1
+
+                #VERIF
+                if np.random.randint(0, 500) == 500:
+                    print("Learning rate: %s"%self.sess.run(self.qnn.decay_learning_rate))
+                    print('test: %s'%test)
+                    print("T: %s"%settings.T.value)
+                    print("global step: %s"%self.sess.run(self.qnn.global_step))
+                    print("epsilon: %s"%epsilon)
+
             if done:
                 R = 0
             else:
@@ -198,7 +227,15 @@ class slave_worker_n_step(mp.Process):
             feed_dict = {self.qnn.variables["input_observation"]: observation_batch[1:, :][shuffle, :],
                          self.qnn.variables["y_true"]: y_batch_arr[shuffle], 
                          self.qnn.variables["y_action"]: action_batch_multiplier[shuffle, :]}
-            self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
+
+            self.sess.run(self.qnn.global_step_assign, 
+                            feed_dict = {self.qnn.global_step_pl: settings.T.value - self.deletion_to_T})
+
+            if self.name == "0":
+                summary, _ = self.sess.run([self.qnn.merged, self.qnn.train_step], feed_dict=feed_dict)
+                self.qnn.writer.add_summary(summary)
+            else:
+                self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
 
 
             diff = self.qnn.assign_value_to_theta(self.sess)
