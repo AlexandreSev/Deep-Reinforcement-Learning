@@ -20,7 +20,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
          model_option={"n_hidden":1, "hidden_size":[10]}, Iasyncupdate=10,
          Itarget=15, gamma=0.9, learning_rate=0.001, several_eps=True, epsilon_ini=0.9, 
          n_sec_print=10, master=False, goal=495, len_history=100, render=False, weighted=False, 
-         eps_fall=50000, callback=False, reset=False):
+         eps_fall=50000, callback=False):
     """
     Parameters:
         nb_process: number of slaves used in the training
@@ -60,12 +60,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
         epsilons = create_list_epsilon(nb_process)
     else:
         epsilons = [epsilon_ini for i in range(nb_process)]
-    
     learning_rates = create_list_lr(nb_process)
-    
-    #1 lr
-    learning_rates = [learning_rate for i in range(nb_process)]
-
     verboses = [False for i in range(nb_process)]
     if master:
         verboses[0] = True
@@ -81,8 +76,6 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
     else:
         raise Exception("Not understood algorithm")
 
-    seeds = np.random.randint(0, 10000, nb_process)
-
 
     for i in range(nb_process):
         print("Process %s starting"%i)
@@ -90,7 +83,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
             policy=policies[i], epsilon_ini=epsilons[i], t_max=t_max, gamma=gamma, 
             learning_rate=learning_rates[i], verbose=verboses[i], weighted=weighted, 
             Iasyncupdate=Iasyncupdate, eps_fall=eps_fall, callback=callback, 
-            callback_name="callbacks/actor" + str(i), reset=reset, seed=seeds[i], name=str(i))
+            callback_name="callbacks/actor" + str(i))
         job.start()
         jobs.append(job)
 
@@ -112,8 +105,8 @@ if __name__=="__main__":
     if len(args)>2:
         main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
             render=False, master=False, env_name="CartPole-v1", goal=495, learning_rate=0.001, 
-            weighted=False, algo="nstep", eps_fall=50000, callback=True, reset=False)
+            weighted=False, algo="nstep", eps_fall=50000, callback=True)
     else:
-        main(8, T_max=10000000, model_option={"n_hidden":1, "hidden_size":[512]}, 
-            render=False, master=False, env_name="CartPole-v1", goal=495, learning_rate=0.01, 
-            weighted=False, algo="nstep", eps_fall=100000, callback=True, reset=True)
+        main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 256]}, 
+            render=False, master=False, env_name="CartPole-v1", goal=495, learning_rate=0.001, 
+            weighted=False, algo="nstep", eps_fall=10000, callback=True)
