@@ -101,9 +101,6 @@ class tester_worker(mp.Process):
         self.sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
 
-        self.nn.read_value_from_theta(self.sess)
-        saver.save(self.sess, './ptb_rnnlm.weights')
-
         observation = self.env.reset()
 
         epsilon=0.
@@ -120,6 +117,9 @@ class tester_worker(mp.Process):
             t = 0
             self.nb_env += 1
             current_reward = 0
+
+            self.nn.read_value_from_theta(self.sess, settings.l_theta)
+            
             while t<self.t_max:
 
                 if self.render:
@@ -158,7 +158,6 @@ class tester_worker(mp.Process):
                     self.callback.store_rpe(current_reward)
             else:
                 self.last_T = settings.T.value
-            self.nn.read_value_from_theta(self.sess)
 
         print("Training completed")
         saver.save(self.sess, './end_training.weights')

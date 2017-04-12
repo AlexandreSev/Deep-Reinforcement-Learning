@@ -277,7 +277,23 @@ class QNeuralNetwork():
             diff += np.linalg.norm(diff_temp)
         return diff
         
-    def read_value_from_theta(self, sess):
+    def assign_value_to_theta_prime(self, theta_prime):
+        """
+        Assign the value of theta to theta'
+        Parameters: 
+            sess: tensorflow session, allow multiprocessing
+        """
+        assert self.initialised, "This model must be initialised (self.initialisation())."
+
+        keys = sorted(self.variables.keys())
+        keys = [ key for key in keys if critere_keys(key, minus=False)]
+
+        for i, key in enumerate(keys):
+            theta_prime[i] = settings.l_theta[i]
+
+        return theta_prime
+        
+    def read_value_from_theta(self, sess, theta, minus=False):
         """
         Assign the value of theta to the weights of the NN
         Parameters: 
@@ -289,26 +305,9 @@ class QNeuralNetwork():
 
         self.theta_copy = []
         keys = sorted(self.variables.keys())
-        keys = [ key for key in keys if critere_keys(key, minus=False)]
+        keys = [ key for key in keys if critere_keys(key, minus=minus)]
 
         for i, key in enumerate(keys):
-            self.theta_copy.append(settings.l_theta[i])
-            feed_dict = {self.variables[key + "_ph"]: settings.l_theta[i]}
-            sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)
-
-    def read_value_from_theta_minus(self, sess):
-        """
-        Assign the value of theta minus to the weights of the NN
-        Parameters: 
-            sess: tensorflow session, allow multiprocessing
-        """
-        import tensorflow as tf
-
-        assert self.initialised, "This model must be initialised (self.initialisation())."
-        
-        keys = sorted(self.variables.keys())
-        keys = [ key for key in keys if critere_keys(key, minus=True)]
-
-        for i, key in enumerate(keys):
-            feed_dict = {self.variables[key + "_ph"]: settings.l_theta_minus[i]}
+            self.theta_copy.append(theta[i])
+            feed_dict = {self.variables[key + "_ph"]: theta[i]}
             sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)

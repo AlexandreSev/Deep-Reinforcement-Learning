@@ -4,7 +4,7 @@ import gym
 import multiprocessing as mp
 import numpy as np
 
-from ..utils.utils import epsilon_greedy_policy
+from ..utils.utils import epsilon_greedy_policy, initialise
 from ..utils import settings
 from ..utils import callback as cb
 
@@ -16,7 +16,7 @@ class slave_worker_n_step(mp.Process):
     This slave uses asynchrone n step Q learning algorithm.
     """
 
-    def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, Iasyncupdate=10,
+    def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001,
                  env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.01, 
                  weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
@@ -27,7 +27,6 @@ class slave_worker_n_step(mp.Process):
             t_max: Value of n in the n step algorithm
             gamma: depreciation of the futur
             learning_rate: learning_rate of the optimiser
-            Iasyncupdate: Not used here
             env_name: name of gym environnment
             model_option: dictionary, must have two keys. n_hidden defines the number of hidden layers,
                         hidden_size the size of them in the QNeuralNetwork used to estimate the reward
@@ -64,6 +63,11 @@ class slave_worker_n_step(mp.Process):
         self.qnn = qnn.QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
                 n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
                 learning_rate=learning_rate, alpha_reg=alpha_reg, beta_reg=beta_reg)
+
+        self.theta_prime = initialise(n_hidden=model_option["n_hidden"],
+                                      hidden_size=model_option["hidden_size"],
+                                      input_size=self.input_size,
+                                      output_size=self.output_size)
             
         
     def run(self):
@@ -76,9 +80,6 @@ class slave_worker_n_step(mp.Process):
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
-
-        self.qnn.read_value_from_theta(self.sess)
-        self.qnn.read_value_from_theta_minus(self.sess)
 
         epsilon = 1
         nb_env = 0
@@ -102,8 +103,7 @@ class slave_worker_n_step(mp.Process):
             reward_batch = []
             action_batch = []
 
-            self.qnn.read_value_from_theta(self.sess)
-
+            self.theta_prime = self.qnn.assign_value_to_theta_prime(self.theta_prime)
 
             while (not done) & (t-t_init<=self.t_max):
                 if self.verbose:
@@ -111,8 +111,7 @@ class slave_worker_n_step(mp.Process):
                     if settings.T.value%5000 == 0:
                         print("T = %s"%settings.T.value)
 
-                self.qnn.read_value_from_theta(self.sess)
-
+                self.qnn.read_value_from_theta(self.sess, self.theta_prime)
                 random, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
                                                 self.sess, self.policy, self.weighted)
 
@@ -150,13 +149,14 @@ class slave_worker_n_step(mp.Process):
                 
                 t += 1
 
-                if epsilon>self.epsilon_ini:
+                if epsilon > self.epsilon_ini:
                     epsilon -= (1 - self.epsilon_ini)/self.eps_fall
 
-                if self.sess.run(self.qnn.decay_learning_rate) < 1e-5:
-                    self.qnn.reset_lr(selfself.sess)
-                    epsilon = 1
+                # if self.sess.run(self.qnn.decay_learning_rate) < 1e-5:
+                #     self.qnn.reset_lr(selfself.sess)
+                #     epsilon = 1
             
+            self.qnn.read_value_from_theta(self.sess, settings.l_theta_minus, minus=True)
             if done:
                 R = 0
             else:
@@ -193,13 +193,12 @@ class slave_worker_n_step(mp.Process):
             shuffle = np.arange(len(y_batch_arr))
             np.random.shuffle(shuffle)
             
-            self.qnn.read_value_from_theta(self.sess)
-            
             feed_dict = {self.qnn.variables["input_observation"]: observation_batch[1:, :][shuffle, :],
                          self.qnn.variables["y_true"]: y_batch_arr[shuffle], 
                          self.qnn.variables["y_action"]: action_batch_multiplier[shuffle, :]}
-            self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
 
+            self.qnn.read_value_from_theta(self.sess, self.theta_prime)
+            self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
 
             diff = self.qnn.assign_value_to_theta(self.sess)
 
