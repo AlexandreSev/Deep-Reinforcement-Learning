@@ -16,7 +16,7 @@ class slave_worker_n_step(mp.Process):
     This slave uses asynchrone n step Q learning algorithm.
     """
 
-    def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001,
+    def __init__(self, T_max=100000, t_max=5, gamma=0.9, learning_rate=0.001, Iasyncupdate=10,
                  env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.01, 
                  weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
@@ -27,6 +27,7 @@ class slave_worker_n_step(mp.Process):
             t_max: Value of n in the n step algorithm
             gamma: depreciation of the futur
             learning_rate: learning_rate of the optimiser
+            Iasyncupdate: Not used here
             env_name: name of gym environnment
             model_option: dictionary, must have two keys. n_hidden defines the number of hidden layers,
                         hidden_size the size of them in the QNeuralNetwork used to estimate the reward
@@ -156,7 +157,7 @@ class slave_worker_n_step(mp.Process):
                 #     self.qnn.reset_lr(selfself.sess)
                 #     epsilon = 1
             
-            self.qnn.read_value_from_theta(self.sess, settings.l_theta_minus, minus=True)
+            self.qnn.read_value_from_theta(self.sess, settings.l_theta_minus)
             if done:
                 R = 0
             else:

@@ -2,7 +2,7 @@
 import numpy as np
 from ..utils import settings
 
-def critere_keys(key, minus=False):
+def critere_keys(key):
     """
     Return True if the key corresponds to a weight or a bias
     Parameters:
@@ -10,13 +10,8 @@ def critere_keys(key, minus=False):
         minus: Boolean, If true, critere_keys returns True if the key corresponds 
                to a parameter of theta minus, else, it returns True for a parameter of theta
     """
-    critere = (key not in ["input_observation", "y_true", "y_action", "y", "y_minus"])
+    critere = (key not in ["input_observation", "y_true", "y_action", "y"])
     critere = critere & (key[-3:] != "_ph") & (key[-7:] != "_assign")
-
-    if minus:
-        critere = critere & (key[-6:] == "_minus")
-    else:
-        critere = critere & (key[-6:] != "_minus")
 
     return critere
 
@@ -60,11 +55,9 @@ class QNeuralNetwork():
         """
         Create the neural network, the loss and the train step
         """
-        self.create_variables(name="")
-        self.create_variables(name="_minus")
+        self.create_variables()
         self.create_placeholders()
-        self.build_model(name="")
-        self.build_model(name="_minus")
+        self.build_model()
         self.reset_lr(None, True)
         self.build_loss()
         self.initialised = True
@@ -101,26 +94,26 @@ class QNeuralNetwork():
         self.variables[name + "_assign"] = tf.assign(self.variables[name], 
             self.variables[name + "_ph"])
 
-    def create_variables(self, name=""):
+    def create_variables(self):
         """
         Create all weight/biais variables for a full forward pass
         Parameters:
             name: string, used to complete every name of variables, usefull to create two NNs
         """
-        self.create_weight_variable([self.input_size, self.hidden_size[0]], name="W1" + name)
+        self.create_weight_variable([self.input_size, self.hidden_size[0]], name="W1")
 
-        self.create_bias_variable((1, self.hidden_size[0]), name="b1" + name)
+        self.create_bias_variable((1, self.hidden_size[0]), name="b1")
 
         for i in range(self.n_hidden-1):
             self.create_weight_variable([self.hidden_size[i], self.hidden_size[i+1]], 
-                                        name="W"+str(i+2) + name)
+                                        name="W"+str(i+2))
 
-            self.create_bias_variable((1, self.hidden_size[i+1]), name="b"+str(i+2) + name)
+            self.create_bias_variable((1, self.hidden_size[i+1]), name="b"+str(i+2))
 
 
-        self.create_weight_variable([self.hidden_size[-1], self.output_size], name="Wo" + name)
+        self.create_weight_variable([self.hidden_size[-1], self.output_size], name="Wo")
 
-        self.create_bias_variable((1, self.output_size), name="bo" + name)
+        self.create_bias_variable((1, self.output_size), name="bo")
 
     def create_placeholders(self):
         """
@@ -136,7 +129,7 @@ class QNeuralNetwork():
         self.variables["y_action"] = tf.placeholder(tf.float32, shape=[None, self.output_size], 
             name="action")
 
-    def build_model(self, name=""):
+    def build_model(self):
         """
         Create the forward pass
         Parameters:
@@ -144,14 +137,14 @@ class QNeuralNetwork():
         """
         import tensorflow as tf
         
-        y = tf.nn.relu(tf.matmul(self.variables["input_observation"], self.variables["W1" + name]) + 
-                       self.variables["b1" + name], name="y1"+name)
+        y = tf.nn.relu(tf.matmul(self.variables["input_observation"], self.variables["W1"]) + 
+                       self.variables["b1"], name="y1")
         
         for i in range(self.n_hidden-1):
-            y = tf.nn.relu(tf.matmul(y, self.variables["W"+str(i+2)+name]) + 
-                           self.variables["b"+str(i+2)+name], name="y"+str(i+2)+name)
+            y = tf.nn.relu(tf.matmul(y, self.variables["W"+str(i+2)]) + 
+                           self.variables["b"+str(i+2)], name="y"+str(i+2))
         
-        self.variables["y"+name] = tf.matmul(y, self.variables["Wo"+name]) + self.variables["bo"+name]
+        self.variables["y"] = tf.matmul(y, self.variables["Wo"]) + self.variables["bo"]
 
     def build_loss(self):
         """
@@ -166,7 +159,7 @@ class QNeuralNetwork():
         l2_reg = 0
 
         keys = sorted(self.variables.keys())
-        keys = [ key for key in keys if critere_keys(key, minus=False) ]
+        keys = [ key for key in keys if critere_keys(key) ]
         for key in keys:
             l1_reg += tf.reduce_sum(tf.abs(self.variables[key]))
             l2_reg += tf.nn.l2_loss(self.variables[key])
@@ -268,7 +261,7 @@ class QNeuralNetwork():
         assert self.initialised, "This model must be initialised (self.initialisation())."
 
         keys = sorted(self.variables.keys())
-        keys = [ key for key in keys if critere_keys(key, minus=False)]
+        keys = [ key for key in keys if critere_keys(key)]
 
         diff = 0
         for i, key in enumerate(keys):
@@ -286,14 +279,14 @@ class QNeuralNetwork():
         assert self.initialised, "This model must be initialised (self.initialisation())."
 
         keys = sorted(self.variables.keys())
-        keys = [ key for key in keys if critere_keys(key, minus=False)]
+        keys = [ key for key in keys if critere_keys(key)]
 
         for i, key in enumerate(keys):
             theta_prime[i] = settings.l_theta[i]
 
         return theta_prime
         
-    def read_value_from_theta(self, sess, theta, minus=False):
+    def read_value_from_theta(self, sess, theta):
         """
         Assign the value of theta to the weights of the NN
         Parameters: 
@@ -305,7 +298,7 @@ class QNeuralNetwork():
 
         self.theta_copy = []
         keys = sorted(self.variables.keys())
-        keys = [ key for key in keys if critere_keys(key, minus=minus)]
+        keys = [ key for key in keys if critere_keys(key)]
 
         for i, key in enumerate(keys):
             self.theta_copy.append(theta[i])
