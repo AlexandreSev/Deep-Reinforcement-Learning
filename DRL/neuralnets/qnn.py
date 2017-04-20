@@ -82,7 +82,7 @@ class QNeuralNetwork():
             for f in os.listdir(save_path):
                 os.remove(pjoin(save_path, f))
         else:
-            os.makedirs(self.saving_directory)
+            os.makedirs(save_path)
 
         self.writer = tf.summary.FileWriter(save_path, sess.graph)
 
