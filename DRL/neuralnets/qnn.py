@@ -210,7 +210,7 @@ class QNeuralNetwork():
             sess.run(self.decay_steps_assign, feed_dict={self.decay_steps_pl: temp})
         
         self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
-            global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
+            global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.9999)
 
     def get_reward(self, observation, sess):
         feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
@@ -239,12 +239,15 @@ class QNeuralNetwork():
         assert self.initialised, "This model must be initialised (self.initialisation())"
         reward = self.get_reward(observation, sess)
 
-        cor = max(-min(reward), 0)
-        reward = [i+cor for i in reward]
-        proba = [i/np.sum(reward) for i in reward]
-        action = np.random.choice(range(len(reward)), p=proba)
+        reward_cumsum = np.cumsum(reward) / np.sum(reward)
+
+        temp = np.random.rand()
+
+        for i, value in enumerate(reward_cumsum):
+            if value > temp:
+                break
       
-        return action, reward[action]
+        return i, reward[i]
 
     def best_action(self, observation, sess, weighted=False):
         """

@@ -20,7 +20,7 @@ class slave_worker_n_step(mp.Process):
                  env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.01, 
                  weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
-                 callback_batch_size=100, name="", seed=42, **kwargs):
+                 callback_batch_size=100, name="", seed=42, action_replay=1,  **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -40,7 +40,7 @@ class slave_worker_n_step(mp.Process):
         """
         super(slave_worker_n_step, self).__init__(**kwargs)
         self.T_max = T_max
-        self.t_max = t_max
+        self.t_max = t_max * action_replay
         self.gamma = gamma
         self.env = gym.make(env_name)
         self.output_size = self.env.action_space.n
@@ -51,6 +51,7 @@ class slave_worker_n_step(mp.Process):
         self.eps_fall = eps_fall
         self.name = name
         self.seed = seed
+        self.action_replay = action_replay
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
@@ -93,6 +94,7 @@ class slave_worker_n_step(mp.Process):
         nb_env = 0
         rpe = 0
         t_env = 0
+        action_replay = 1
 
         observation = self.env.reset()
 
@@ -120,8 +122,13 @@ class slave_worker_n_step(mp.Process):
                         print("T = %s"%settings.T.value)
 
                 self.qnn.read_value_from_theta(self.sess, self.theta_prime)
-                random, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
-                                                self.sess, self.policy, self.weighted)
+
+                if action_replay == 1:
+                    random, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
+                                                    self.sess, self.policy, self.weighted)
+                    action_replay = self.action_replay
+                else:
+                    action_replay -= 1
 
                 observation, reward, done, info = self.env.step(action) 
 
