@@ -20,7 +20,7 @@ class slave_worker_n_step(mp.Process):
                  env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.01, 
                  weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
-                 callback_batch_size=100, name="", seed=42, action_replay=1,  **kwargs):
+                 callback_batch_size=100, name="", seed=42, action_replay=1,  reset=False, **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -52,6 +52,9 @@ class slave_worker_n_step(mp.Process):
         self.name = name
         self.seed = seed
         self.action_replay = action_replay
+        self.reset = reset
+        self.count_T_reset = 0
+        self.lr_ini = learning_rate
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
@@ -102,6 +105,8 @@ class slave_worker_n_step(mp.Process):
         estimated_rewards_env = []
         rewards = []
 
+        minlr = self.lr_ini / 10
+
         while settings.T.value<self.T_max:
 
             t = 0
@@ -120,6 +125,9 @@ class slave_worker_n_step(mp.Process):
                     self.env.render()
                     if settings.T.value%5000 == 0:
                         print("T = %s"%settings.T.value)
+
+                self.sess.run(self.qnn.global_step_assign, 
+                    feed_dict={self.qnn.global_step_pl: settings.T.value - self.count_T_reset})
 
                 self.qnn.read_value_from_theta(self.sess, self.theta_prime)
 
@@ -166,6 +174,12 @@ class slave_worker_n_step(mp.Process):
 
                 if epsilon > self.epsilon_ini:
                     epsilon -= (1 - self.epsilon_ini)/self.eps_fall
+
+                if self.reset & (self.sess.run(self.qnn.decay_learning_rate) < minlr) :
+                    minlr /= 10
+                    epsilon = 1
+                    self.count_T_reset = settings.T.value
+                    self.qnn.reset_lr(self.sess)
 
                 # if self.sess.run(self.qnn.decay_learning_rate) < 1e-5:
                 #     self.qnn.reset_lr(selfself.sess)

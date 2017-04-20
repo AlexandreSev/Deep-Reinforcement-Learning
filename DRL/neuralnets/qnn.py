@@ -191,14 +191,15 @@ class QNeuralNetwork():
         self.loss = loss + self.alpha_reg * l1_reg + self.beta_reg * l2_reg
 
         self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate,
-            decay=0.99, momentum=0.5, centered=True).minimize(self.loss, global_step=self.global_step)
+            decay=0.99, momentum=0., centered=True).minimize(self.loss, global_step=self.global_step)
 
     def reset_lr(self, sess, init=False):
         import tensorflow as tf
         
         if init:
             self.global_step = tf.Variable(0, trainable=False)
-            self.global_step_assign = tf.assign(self.global_step, 0)
+            self.global_step_pl = tf.placeholder(tf.int32)
+            self.global_step_assign = tf.assign(self.global_step, self.global_step_pl)
 
             self.decay_steps = tf.Variable(1, trainable=False)
             self.decay_steps_pl = tf.placeholder(tf.int32)
@@ -206,11 +207,10 @@ class QNeuralNetwork():
         else:
             print("Reset")
             temp = sess.run(self.decay_steps) * 2
-            sess.run(self.global_step_assign)
             sess.run(self.decay_steps_assign, feed_dict={self.decay_steps_pl: temp})
         
         self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
-            global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.9999)
+            global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
 
     def get_reward(self, observation, sess):
         feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
