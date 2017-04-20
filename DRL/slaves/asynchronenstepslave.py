@@ -76,7 +76,6 @@ class slave_worker_n_step(mp.Process):
                                       input_size=self.input_size,
                                       output_size=self.output_size)
             
-        
     def run(self):
         """
         Run the worker and launch the n step algorithm
@@ -110,7 +109,6 @@ class slave_worker_n_step(mp.Process):
         while settings.T.value<self.T_max:
 
             t = 0
-            t_init = t
             done = False
 
             observation_batch = observation.reshape((1, -1))
@@ -120,7 +118,7 @@ class slave_worker_n_step(mp.Process):
 
             self.theta_prime = self.qnn.assign_value_to_theta_prime(self.theta_prime)
 
-            while (not done) & (t-t_init<=self.t_max):
+            while (not done) & (t<=self.t_max):
                 if self.verbose:
                     self.env.render()
                     if settings.T.value%5000 == 0:
@@ -180,10 +178,6 @@ class slave_worker_n_step(mp.Process):
                     epsilon = 1
                     self.count_T_reset = settings.T.value
                     self.qnn.reset_lr(self.sess)
-
-                # if self.sess.run(self.qnn.decay_learning_rate) < 1e-5:
-                #     self.qnn.reset_lr(selfself.sess)
-                #     epsilon = 1
             
             self.qnn.read_value_from_theta(self.sess, settings.l_theta_minus)
             if done:
@@ -192,7 +186,7 @@ class slave_worker_n_step(mp.Process):
                 R = self.qnn.best_reward(observation, self.sess, self.weighted)
 
             true_reward = []
-            for i in range(t - 1, t_init - 1, -1):
+            for i in range(t - 1, -1, -1):
                 R = reward_batch[i] + self.gamma * R
                 true_reward.append(R)
 
@@ -214,10 +208,6 @@ class slave_worker_n_step(mp.Process):
             action_batch.reverse()
             action_batch_multiplier = np.eye(self.output_size)[action_batch]
             y_batch_arr = np.array(true_reward)
-
-            #print("fed_reward_batch", y_batch_arr)
-            #print("fed_action_batch", action_batch_multiplier)
-            #print("fed_observation_batch", observation_batch[:-1, :])
 
             shuffle = np.arange(len(y_batch_arr))
             np.random.shuffle(shuffle)

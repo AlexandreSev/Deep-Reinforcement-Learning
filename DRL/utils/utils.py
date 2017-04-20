@@ -66,7 +66,6 @@ def initialise(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64]):
     
     for i, shape in enumerate(shapes):
         l_theta.append(np.random.uniform(low=-0.01, high=0.01, size=shape))
-        # l_theta[i].value = np.random.uniform(low=-0.01, high=0.01, size=shape)
         
     return l_theta
 
