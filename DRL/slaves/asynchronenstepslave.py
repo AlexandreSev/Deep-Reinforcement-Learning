@@ -20,7 +20,7 @@ class slave_worker_n_step(mp.Process):
                  env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.01, 
                  weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
-                 callback_batch_size=100, **kwargs):
+                 callback_batch_size=100, name="", **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -49,6 +49,7 @@ class slave_worker_n_step(mp.Process):
         self.epsilon_ini = epsilon_ini
         self.weighted = weighted
         self.eps_fall = eps_fall
+        self.name = name
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
@@ -80,6 +81,9 @@ class slave_worker_n_step(mp.Process):
         self.qnn.initialisation()
 
         self.sess = tf.Session()
+
+        self.qnn.create_summary(self.sess, self.name)
+
         self.sess.run(tf.global_variables_initializer())
 
         epsilon = 1
@@ -199,7 +203,10 @@ class slave_worker_n_step(mp.Process):
                          self.qnn.variables["y_action"]: action_batch_multiplier[shuffle, :]}
 
             self.qnn.read_value_from_theta(self.sess, self.theta_prime)
-            self.sess.run(self.qnn.train_step, feed_dict=feed_dict)
+            
+            summary, _ = self.sess.run([self.qnn.merged, self.qnn.train_step], feed_dict=feed_dict)
+
+            self.qnn.writer.add_summary(summary, t_env)
 
             diff = self.qnn.assign_value_to_theta(self.sess)
 

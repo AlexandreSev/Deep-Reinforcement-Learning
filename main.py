@@ -83,7 +83,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
             policy=policies[i], epsilon_ini=epsilons[i], t_max=t_max, gamma=gamma, 
             learning_rate=learning_rates[i], verbose=verboses[i], weighted=weighted, 
             Iasyncupdate=Iasyncupdate, eps_fall=eps_fall, callback=callback,
-            callback_name="callbacks/actor" + str(i))
+            callback_name="callbacks/actor" + str(i), name=str(i))
         job.start()
         jobs.append(job)
 
