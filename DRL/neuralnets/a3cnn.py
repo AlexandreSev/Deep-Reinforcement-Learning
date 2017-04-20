@@ -1,6 +1,8 @@
 # coding: utf-8
 import numpy as np
 from ..utils import settings
+import os
+from os.path import join as pjoin
 
 def critere_keys(key):
     """
@@ -59,10 +61,34 @@ class A3CNeuralNetwork():
         self.create_variables()
         self.create_placeholders()
         self.build_model()
+        self.reset_lr(None, True)
         self.build_loss()
-        self.compute_gradients()
         self.build_train_step()
         self.initialised = True
+
+    def create_summary(self, sess, name="0"):
+        import tensorflow as tf
+
+        save_path = './callbacks/summaries/' + name + '/'
+
+        tf.summary.scalar("learning rate", self.decay_learning_rate)
+        tf.summary.scalar("loss", self.loss_vf)
+
+        keys = sorted(self.variables.keys())
+        keys = [ key for key in keys if critere_keys(key)]
+
+        for key in keys:
+            tf.summary.histogram(key, self.variables[key])
+
+        self.merged = tf.summary.merge_all()
+
+        if os.path.exists(save_path):
+            for f in os.listdir(save_path):
+                os.remove(pjoin(save_path, f))
+        else:
+            os.makedirs(save_path)
+
+        self.writer = tf.summary.FileWriter(save_path, sess.graph)
 
     def create_weight_variable(self, shape, name="W", type_layer=None):
         """
@@ -80,18 +106,6 @@ class A3CNeuralNetwork():
         self.variables[name + "_assign"] = tf.assign(self.variables[name], 
             self.variables[name + "_assign_ph"])
 
-        if type_layer=="policy":
-            self.variables[name + "_grad_policy_ph"] = tf.placeholder(tf.float32, shape=shape,
-                name=name + "_grad_policy_ph")
-        elif type_layer=="vf":
-            self.variables[name + "_grad_vf_ph"] = tf.placeholder(tf.float32, shape=shape,
-                name=name + "_grad_vf_ph")
-        else:
-            self.variables[name + "_grad_policy_ph"] = tf.placeholder(tf.float32, shape=shape,
-                name=name + "_grad_policy_ph")
-            self.variables[name + "_grad_vf_ph"] = tf.placeholder(tf.float32, shape=shape,
-                name=name + "_grad_vf_ph")
-
     def create_bias_variable(self, shape, name="b", type_layer=None):
         """
         Create a biais as a tf variable. Create also a placeholder and a assign operation
@@ -107,18 +121,6 @@ class A3CNeuralNetwork():
             name=name+"_assign_ph")
         self.variables[name + "_assign"] = tf.assign(self.variables[name], 
             self.variables[name + "_assign_ph"])
-
-        if type_layer=="policy":
-            self.variables[name + "_grad_policy_ph"] = tf.placeholder(tf.float32, shape=shape,
-                name=name + "_grad_policy_ph")
-        elif type_layer=="vf":
-            self.variables[name + "_grad_vf_ph"] = tf.placeholder(tf.float32, shape=shape,
-                name=name + "_grad_vf_ph")
-        else:
-            self.variables[name + "_grad_policy_ph"] = tf.placeholder(tf.float32, shape=shape,
-                name=name + "_grad_policy_ph")
-            self.variables[name + "_grad_vf_ph"] = tf.placeholder(tf.float32, shape=shape,
-                name=name + "_grad_vf_ph")
 
     def create_variables(self):
         """
@@ -153,10 +155,13 @@ class A3CNeuralNetwork():
         self.variables["input_observation"] = tf.placeholder(tf.float32, 
             shape=[None, self.input_size], name="i_observation")
 
-        self.variables["y_true"] = tf.placeholder(tf.float32, shape=[None, 1], name="y_true")
+        self.variables["y_true"] = tf.placeholder(tf.float32, shape=[None], name="y_true")
 
-        self.variables["y_action"] = tf.placeholder(tf.float32, shape=[self.output_size, None], 
+        self.variables["y_action"] = tf.placeholder(tf.float32, shape=[None, self.output_size], 
             name="action")
+
+        self.variables["loss_policy_ph"] = tf.placeholder(tf.float32, shape=[None], 
+            name="loss_policy")
 
     def build_model(self):
         """
@@ -178,29 +183,11 @@ class A3CNeuralNetwork():
         
     def build_loss(self):
         import tensorflow as tf
-        loss_list_policy = tf.log(tf.matmul(self.variables["actions"], self.variables["y_action"]))
-        self.loss_policy = tf.reduce_sum(loss_list_policy)
+        loss_list_policy = tf.log(tf.reduce_sum(tf.multiply(self.variables["actions"], self.variables["y_action"]), axis=1))
+        self.loss_policy = tf.reduce_sum(tf.multiply(loss_list_policy, self.variables["loss_policy_ph"]))
 
         loss_list_vf = tf.nn.l2_loss(self.variables["values"] - self.variables["y_true"])
         self.loss_vf = tf.reduce_sum(loss_list_vf)
-
-    def compute_gradients(self):
-        import tensorflow as tf
-        self.gradients = {}
-        
-        keys = self.variables.keys()
-        keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
-                (key[-7:] != "_assign")]
-        common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
-        policy_keys = [key for key in keys if "policy" in key]
-        vf_keys = [key for key in keys if "vf" in key]
-        for key in common_keys:
-            self.gradients[key + "_grad_policy_ph"] = tf.gradients(self.loss_policy, [self.variables[key]])[0] * (self.variables["y_true"] - self.variables["values"])
-            self.gradients[key + "_grad_vf_ph"] = tf.gradients(self.loss_vf, [self.variables[key]])[0]
-        for key in policy_keys:
-            self.gradients[key + "_grad_policy_ph"] = tf.gradients(self.loss_policy, [self.variables[key]])[0] * (self.variables["y_true"] - self.variables["values"])
-        for key in vf_keys:
-            self.gradients[key + "_grad_vf_ph"] = tf.gradients(self.loss_vf, [self.variables[key]])[0]
 
     def build_train_step(self):
         import tensorflow as tf
@@ -213,19 +200,40 @@ class A3CNeuralNetwork():
         vf_keys = [key for key in keys if "vf" in key]
         updates = []
         for key in common_keys:
-            updates.append((self.variables[key + "_grad_policy_ph"], self.variables[key]))
-            updates.append((self.variables[key + "_grad_vf_ph"], self.variables[key]))
+            updates.append((tf.gradients(self.loss_policy, [self.variables[key]])[0], self.variables[key]))
+            updates.append((tf.gradients(self.loss_vf, [self.variables[key]])[0], self.variables[key]))
         for key in policy_keys:
-            updates.append((self.variables[key + "_grad_policy_ph"], self.variables[key]))
+            updates.append((tf.gradients(self.loss_policy, [self.variables[key]])[0], self.variables[key]))
         for key in vf_keys:
-            updates.append((self.variables[key + "_grad_vf_ph"], self.variables[key]))
+            updates.append((tf.gradients(self.loss_vf, [self.variables[key]])[0], self.variables[key]))
 
-        self.global_step = tf.Variable(0, trainable=False)
-        self.decay_learning_rate = tf.train.inverse_time_decay(self.learning_rate, self.global_step, 
-                                    1, 0.001)
+        self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate,
+            decay=0.99, momentum=0., centered=True).apply_gradients(updates,
+            global_step=self.global_step)
 
-        self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate).apply_gradients(updates,
-                        global_step=self.global_step)
+    def reset_lr(self, sess, init=False):
+        import tensorflow as tf
+        
+        if init:
+            self.global_step = tf.Variable(0, trainable=False)
+            self.global_step_pl = tf.placeholder(tf.int32)
+            self.global_step_assign = tf.assign(self.global_step, self.global_step_pl)
+
+            self.decay_steps = tf.Variable(1, trainable=False)
+            self.decay_steps_pl = tf.placeholder(tf.int32)
+            self.decay_steps_assign = tf.assign(self.decay_steps, self.decay_steps_pl)
+        else:
+            print("Reset")
+            temp = sess.run(self.decay_steps) * 2
+            sess.run(self.decay_steps_assign, feed_dict={self.decay_steps_pl: temp})
+        
+        self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
+            global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
+
+    def get_reward(self, observation, sess):
+        feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
+        reward = np.squeeze(sess.run(self.variables["actions"], feed_dict=feed_dic))
+        return reward
 
     def best_choice(self, observation, sess):
         """
@@ -235,8 +243,7 @@ class A3CNeuralNetwork():
             sess: tensorflow session, allow multiprocessing
         """
         assert(self.initialised, "This model must be initialised (self.initialisation())")
-        feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-        reward = np.squeeze(sess.run(self.variables["actions"], feed_dict=feed_dic))
+        reward = self.get_reward(observation, sess)
       
         return np.argmax(reward), np.max(reward)
 
@@ -248,8 +255,7 @@ class A3CNeuralNetwork():
             sess: tensorflow session, allow multiprocessing
         """
         assert(self.initialised, "This model must be initialised (self.initialisation())")
-        feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-        reward = np.squeeze(sess.run(self.variables["actions"], feed_dict=feed_dic))
+        reward = self.get_reward(observation, sess)
 
         cor = max(-min(reward), 0)
         reward = [i+cor for i in reward]
@@ -296,8 +302,7 @@ class A3CNeuralNetwork():
 
         assert(self.initialised, "This model must be initialised (self.initialisation()).")
 
-        keys = self.variables.keys()
-        keys.sort()
+        keys = sorted(self.variables.keys())
         keys = [ key for key in keys if critere_keys(key)]
 
         diff = 0
@@ -307,7 +312,23 @@ class A3CNeuralNetwork():
             diff += np.linalg.norm(diff_temp)
         return diff
         
-    def read_value_from_theta(self, sess):
+    def assign_value_to_theta_prime(self, theta_prime):
+        """
+        Assign the value of theta to theta'
+        Parameters: 
+            sess: tensorflow session, allow multiprocessing
+        """
+        assert self.initialised, "This model must be initialised (self.initialisation())."
+
+        keys = sorted(self.variables.keys())
+        keys = [ key for key in keys if critere_keys(key)]
+
+        for i, key in enumerate(keys):
+            theta_prime[i] = settings.l_theta[i]
+
+        return theta_prime
+        
+    def read_value_from_theta(self, sess, theta):
         """
         Assign the value of theta to the weights of the NN
         Parameters: 
@@ -315,14 +336,13 @@ class A3CNeuralNetwork():
         """
         import tensorflow as tf
 
-        assert(self.initialised, "This model must be initialised (self.initialisation()).")
+        assert self.initialised, "This model must be initialised (self.initialisation())."
 
         self.theta_copy = []
-        keys = self.variables.keys()
-        keys.sort()
+        keys = sorted(self.variables.keys())
         keys = [ key for key in keys if critere_keys(key)]
 
         for i, key in enumerate(keys):
-            self.theta_copy.append(settings.l_theta[i])
-            feed_dict = {self.variables[key + "_assign_ph"]: settings.l_theta[i]}
+            self.theta_copy.append(theta[i])
+            feed_dict = {self.variables[key + "_assign_ph"]: theta[i]}
             sess.run(self.variables[key + "_assign"], feed_dict=feed_dict)

@@ -4,7 +4,7 @@ import gym
 import multiprocessing as mp
 import numpy as np
 
-from ..utils.utils import epsilon_greedy_policy
+from ..utils.utils import epsilon_greedy_policy, initialise_a3c
 from ..utils import settings
 from ..utils import callback as cb
 
@@ -20,7 +20,7 @@ class slave_worker_a3c(mp.Process):
                  env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.001, 
                  weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
-                 callback_batch_size=100, **kwargs):
+                 callback_batch_size=100, name="", seed=42, action_replay=1,  reset=False, **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -49,6 +49,12 @@ class slave_worker_a3c(mp.Process):
         self.epsilon_ini = epsilon_ini
         self.weighted = weighted
         self.eps_fall = eps_fall
+        self.name = name
+        self.seed = seed
+        self.action_replay = action_replay
+        self.reset = reset
+        self.count_T_reset = 0
+        self.lr_ini = learning_rate
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
@@ -64,31 +70,45 @@ class slave_worker_a3c(mp.Process):
         self.a3cnn = a3cnn.A3CNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
                 n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
                 learning_rate=learning_rate, alpha_reg=alpha_reg, beta_reg=beta_reg)
+
+        self.theta_prime = initialise_a3c(n_hidden=model_option["n_hidden"],
+                                          hidden_size=model_option["hidden_size"],
+                                          input_size=self.input_size,
+                                          output_size=self.output_size)
             
-        
     def run(self):
         """
         Run the worker and launch the n step algorithm
         """
         import tensorflow as tf
 
+        np.random.seed(self.seed)
+
         self.a3cnn.initialisation()
 
         self.sess = tf.Session()
+
+        self.a3cnn.create_summary(self.sess, self.name)
+        
         self.sess.run(tf.global_variables_initializer())
 
-        self.a3cnn.read_value_from_theta(self.sess)
-
-        epsilon = self.epsilon_ini
+        epsilon = 1
         nb_env = 0
         rpe = 0
+        t_env = 0
+        action_replay = 1
 
         observation = self.env.reset()
+
+        rewards_env = []
+        estimated_rewards_env = []
+        rewards = []
+
+        minlr = self.lr_ini / 10
 
         while settings.T.value<self.T_max:
 
             t = 0
-            t_init = t
             done = False
 
             observation_batch = observation.reshape((1, -1))
@@ -96,55 +116,48 @@ class slave_worker_a3c(mp.Process):
             reward_batch = []
             action_batch = []
 
-            d_theta = {}
-            keys = self.a3cnn.variables.keys()
-            keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
-                    (key[-7:] != "_assign")]
-            common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
-            policy_keys = [key for key in keys if "policy" in key]
-            vf_keys = [key for key in keys if "vf" in key]
-            for key in common_keys:
-                d_theta[key + "_grad_policy_ph"] = 0
-                d_theta[key + "_grad_vf_ph"] = 0
-            for key in policy_keys:
-                d_theta[key + "_grad_policy_ph"] = 0
-            for key in vf_keys:
-                d_theta[key + "_grad_vf_ph"] = 0
-
-            self.a3cnn.read_value_from_theta(self.sess)
-
-
-            while (not done) & (t-t_init<=self.t_max):
+            self.theta_prime = self.a3cnn.assign_value_to_theta_prime(self.theta_prime)
+            self.a3cnn.read_value_from_theta(self.sess, self.theta_prime)
             
+            while (not done) & (t<=self.t_max):
                 if self.verbose:
                     self.env.render()
                     if settings.T.value%5000 == 0:
                         print("T = %s"%settings.T.value)
 
-                random, action = epsilon_greedy_policy(self.a3cnn, observation, epsilon, self.env, 
-                                                       self.sess, self.policy, self.weighted)
+                self.sess.run(self.a3cnn.global_step_assign, 
+                    feed_dict={self.a3cnn.global_step_pl: settings.T.value - self.count_T_reset})
+
+                if action_replay == 1:
+                    random, action = epsilon_greedy_policy(self.a3cnn, observation, epsilon, self.env, 
+                                                    self.sess, self.policy, self.weighted)
+                    action_replay = self.action_replay
+                else:
+                    action_replay -= 1
 
                 observation, reward, done, info = self.env.step(action) 
 
-                rpe += reward
+                t_env +=1
+                
+                if self.callback:
+                    rewards_env.append(reward)
+                    rewards.append(self.a3cnn.get_reward(observation, self.sess))
+                    rpe += reward
 
                 reward_batch.append(reward)
                 action_batch.append(action)
 
                 if self.callback:
-                    self.callback.store(reward, random, action, observation_batch[0])
+                    self.callback.store(reward, random, action, observation_batch[0], rewards)
 
                 observation_batch = np.vstack((observation.reshape((1, -1)), observation_batch))
-                #print("reward_batch", reward_batch)
-                #print("action_batch", action_batch)
-                #print("observation_batch", observation_batch)
-              
 
                 if done:
                     nb_env += 1
                     observation = self.env.reset()
                     if self.callback:
                         self.callback.store_rpe(rpe)
+                        self.callback.store_hp(epsilon, self.sess.run(self.a3cnn.decay_learning_rate))
                     rpe = 0
                 
                 with settings.T.get_lock():
@@ -152,8 +165,14 @@ class slave_worker_a3c(mp.Process):
                 
                 t += 1
 
-                if epsilon>0.01:
-                    epsilon -= (self.epsilon_ini - 0.01)/self.eps_fall
+                if epsilon > self.epsilon_ini:
+                    epsilon -= (1 - self.epsilon_ini)/self.eps_fall
+
+                if self.reset & (self.sess.run(self.a3cnn.decay_learning_rate) < minlr) :
+                    minlr /= 10
+                    epsilon = 1
+                    self.count_T_reset = settings.T.value
+                    self.a3cnn.reset_lr(self.sess)
             
             if done:
                 R = 0
@@ -161,19 +180,46 @@ class slave_worker_a3c(mp.Process):
                 R = self.sess.run(self.a3cnn.variables["values"],
                     feed_dict={self.a3cnn.variables["input_observation"]: observation.reshape((1, -1))})[0,0]
 
+            observation_batch = observation_batch[1:, :]
             action_batch.reverse()
-            for i in range(t - 1, t_init - 1, -1):
-                R = reward_batch[i] + self.gamma * R
-                feed_dict = {self.a3cnn.variables["input_observation"]: observation_batch[i+1,:].reshape((1, -1)),
-                             self.a3cnn.variables["y_true"]: np.array([[R]]), 
-                             self.a3cnn.variables["y_action"]: np.eye(2)[[action_batch[i]]].T}
-                for key in d_theta.keys():
-                    d_theta[key] += self.sess.run(self.a3cnn.gradients[key], feed_dict=feed_dict)
+            action_batch_multiplier = np.eye(self.output_size)[action_batch]
 
-            feed_dict = {self.a3cnn.variables[key]: d_theta[key] for key in d_theta.keys()}
-            #print(d_theta["W1_grad_policy_ph"])
-            self.a3cnn.read_value_from_theta(self.sess)
-            self.sess.run(self.a3cnn.train_step, feed_dict=feed_dict)
+            true_reward = []
+            policy_loss = []
+            for i in range(t - 1, -1, -1):
+                R = reward_batch[i] + self.gamma * R
+                vf = self.sess.run(self.a3cnn.variables["values"],
+                    feed_dict={self.a3cnn.variables["input_observation"]: observation_batch[i].reshape((1, -1))})[0,0]
+                true_reward.append(R)
+                policy_loss.append(R - vf)
+
+            if self.callback:
+                estimated_rewards_env += true_reward[::-1]
+                if done:
+                    history = np.zeros((len(estimated_rewards_env), 4 + self.output_size))
+                    history[:, 0] = np.arange(len(estimated_rewards_env))
+                    history[:, 1] = rewards_env
+                    history[:, 2] = estimated_rewards_env
+                    history[:, 3] = nb_env * np.ones(len(estimated_rewards_env))
+                    history[:, 4:] = np.array(rewards)
+                    self.callback.write_history(history)
+                    rewards_env = []
+                    estimated_rewards_env = []
+                    rewards = []
+
+            y_batch_arr = np.array(true_reward)
+            policy_loss = np.array(policy_loss)
+
+            shuffle = np.arange(len(y_batch_arr))
+            np.random.shuffle(shuffle)
+            
+            feed_dict = {self.a3cnn.variables["input_observation"]: observation_batch[shuffle, :],
+                         self.a3cnn.variables["y_true"]: y_batch_arr[shuffle], 
+                         self.a3cnn.variables["y_action"]: action_batch_multiplier[shuffle, :],
+                         self.a3cnn.variables["loss_policy_ph"]: policy_loss[shuffle]}
+            summary, _ = self.sess.run([self.a3cnn.merged, self.a3cnn.train_step], feed_dict=feed_dict)
+
+            self.a3cnn.writer.add_summary(summary, t_env)
 
             diff = self.a3cnn.assign_value_to_theta(self.sess)
 
