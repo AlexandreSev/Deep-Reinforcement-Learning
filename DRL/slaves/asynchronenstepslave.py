@@ -20,7 +20,7 @@ class slave_worker_n_step(mp.Process):
                  env_name="CartPole-v0", model_option={"n_hidden":1, "hidden_size":[10]}, 
                  verbose=False, policy=None, epsilon_ini=0.9, alpha_reg=0., beta_reg=0.01, 
                  weighted=False, eps_fall=50000, callback=None, callback_name="callbacks/actor0", 
-                 callback_batch_size=100, name="", **kwargs):
+                 callback_batch_size=100, name="", seed=42, **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -50,6 +50,7 @@ class slave_worker_n_step(mp.Process):
         self.weighted = weighted
         self.eps_fall = eps_fall
         self.name = name
+        self.seed = seed
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
@@ -77,6 +78,8 @@ class slave_worker_n_step(mp.Process):
         Run the worker and launch the n step algorithm
         """
         import tensorflow as tf
+
+        np.random.seed(self.seed)
 
         self.qnn.initialisation()
 

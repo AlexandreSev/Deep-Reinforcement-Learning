@@ -83,7 +83,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
             policy=policies[i], epsilon_ini=epsilons[i], t_max=t_max, gamma=gamma, 
             learning_rate=learning_rates[i], verbose=verboses[i], weighted=weighted, 
             Iasyncupdate=Iasyncupdate, eps_fall=eps_fall, callback=callback,
-            callback_name="callbacks/actor" + str(i), name=str(i))
+            callback_name="callbacks/actor" + str(i), name=str(i), seed=i)
         job.start()
         jobs.append(job)
 
@@ -109,4 +109,4 @@ if __name__=="__main__":
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 256]}, 
             render=False, master=False, env_name="CartPole-v1", goal=495, learning_rate=0.001, 
-            weighted=False, algo="nstep", eps_fall=10000, callback=True)
+            weighted=False, algo="nstep", eps_fall=100000, callback=True, Itarget=100)

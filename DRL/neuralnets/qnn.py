@@ -1,6 +1,8 @@
 # coding: utf-8
 import numpy as np
 from ..utils import settings
+import os
+from os.path import join as pjoin
 
 def critere_keys(key):
     """
@@ -63,10 +65,26 @@ class QNeuralNetwork():
     def create_summary(self, sess, name="0"):
         import tensorflow as tf
 
+        save_path = './callbacks/summaries/' + name + '/'
+
         tf.summary.scalar("learning rate", self.decay_learning_rate)
         tf.summary.scalar("loss", self.loss)
+
+        keys = sorted(self.variables.keys())
+        keys = [ key for key in keys if critere_keys(key)]
+
+        for key in keys:
+            tf.summary.histogram(key, self.variables[key])
+
         self.merged = tf.summary.merge_all()
-        self.writer = tf.summary.FileWriter('./callbacks/summaries/' + name + '/', sess.graph)
+
+        if os.path.exists(save_path):
+            for f in os.listdir(save_path):
+                os.remove(pjoin(save_path, f))
+        else:
+            os.makedirs(self.saving_directory)
+
+        self.writer = tf.summary.FileWriter(save_path, sess.graph)
 
     def create_weight_variable(self, shape, name="W"):
         """
