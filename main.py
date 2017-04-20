@@ -17,8 +17,8 @@ from DRL.utils.settings import init
 
 
 def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
-         model_option={"n_hidden":1, "hidden_size":[10]}, Iasyncupdate=10,
-         Itarget=15, gamma=0.9, learning_rate=0.001, several_eps=True, epsilon_ini=0.9, 
+         model_option={"n_hidden":1, "hidden_size":[10]}, Iasyncupdate=5,
+         Itarget=5, gamma=0.9, learning_rate=0.001, several_eps=True, epsilon_ini=0.9, 
          n_sec_print=10, master=False, goal=495, len_history=100, render=False, weighted=False, 
          eps_fall=50000, callback=False):
     """
@@ -82,7 +82,8 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
         job = slave_worker(T_max=T_max, model_option=model_option, env_name=env_name, 
             policy=policies[i], epsilon_ini=epsilons[i], t_max=t_max, gamma=gamma, 
             learning_rate=learning_rates[i], verbose=verboses[i], weighted=weighted, 
-            eps_fall=eps_fall, callback=callback, callback_name="callbacks/actor" + str(i))
+            Iasyncupdate=Iasyncupdate, eps_fall=eps_fall, callback=callback,
+            callback_name="callbacks/actor" + str(i))
         job.start()
         jobs.append(job)
 

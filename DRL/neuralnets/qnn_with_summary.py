@@ -73,11 +73,10 @@ class QNeuralNetwork():
     def create_summary(self, sess):
         import tensorflow as tf
 
-        self.lr_summary = tf.summary.scalar("learning rate", self.decay_learning_rate)
-        self.loss_summary = tf.summary.scalar("loss", self.loss)
+        tf.summary.scalar("learning rate", self.decay_learning_rate)
+        tf.summary.scalar("loss", self.loss)
         self.merged = tf.summary.merge_all()
-        self.writer = tf.summary.FileWriter('./callbacks/summaries/',
-                                      sess.graph)
+        self.writer = tf.summary.FileWriter('./callbacks/summaries/', sess.graph)
 
     def create_weight_variable(self, shape, name="W"):
         """
