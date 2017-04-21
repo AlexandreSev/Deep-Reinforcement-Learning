@@ -25,7 +25,7 @@ class A3CNeuralNetwork():
     """
 
     def __init__(self, input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64], 
-                learning_rate=0.001, alpha_reg=0.001, beta_reg=0.001):
+                learning_rate=0.001, alpha_reg=0., beta_reg=0.01):
         """
         Parameters:
             input_size: size of observations, only 1D array are accepted for now
@@ -183,8 +183,12 @@ class A3CNeuralNetwork():
         
     def build_loss(self):
         import tensorflow as tf
-        loss_list_policy = tf.log(0.01 + tf.reduce_sum(tf.multiply(self.variables["actions"], self.variables["y_action"]), axis=1))
-        self.loss_policy = tf.reduce_sum(tf.multiply(loss_list_policy, self.variables["loss_policy_ph"]))
+
+        pi_actions = tf.reduce_sum(tf.multiply(self.variables["actions"], self.variables["y_action"]), axis=1)
+        log_pi = tf.log(0.01 + pi_actions)
+
+        self.loss_policy = tf.reduce_sum(tf.multiply(log_pi, self.variables["loss_policy_ph"])) \
+            + self.beta_reg * tf.reduce_sum(tf.multiply(log_pi, pi_actions))
 
         self.loss_vf = tf.nn.l2_loss(self.variables["values"] - self.variables["y_true"])
         
