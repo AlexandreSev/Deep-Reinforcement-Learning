@@ -183,7 +183,7 @@ class QNeuralNetwork():
         l2_reg = 0
 
         keys = sorted(self.variables.keys())
-        keys = [ key for key in keys if critere_keys(key) ]
+        keys = [key for key in keys if critere_keys(key) and "W" in key]
         for key in keys:
             l1_reg += tf.reduce_sum(tf.abs(self.variables[key]))
             l2_reg += tf.nn.l2_loss(self.variables[key])
