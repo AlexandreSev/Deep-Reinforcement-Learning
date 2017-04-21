@@ -17,7 +17,7 @@ class tester_worker(mp.Process):
     
     def __init__(self, algo="nstep", T_max=100000, t_max=500, env_name="CartPole-v0", 
                 model_option={"n_hidden":1, "hidden_size":[10]}, n_sec_print=10, 
-                goal=495, len_history=100, Itarget=15, render=False, weighted=False,
+                goal=495, len_history=100, Itarget=100, render=False, weighted=False,
                 callback=None, callback_name="callbacks/tester", callback_batch_size=10, **kwargs):
         """
         Parameters:

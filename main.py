@@ -18,7 +18,7 @@ from DRL.utils.settings import init
 
 def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
          model_option={"n_hidden":1, "hidden_size":[10]}, Iasyncupdate=5,
-         Itarget=5, gamma=0.9, learning_rate=0.001, several_eps=True, epsilon_ini=0.9, 
+         Itarget=100, gamma=0.9, learning_rate=0.001, several_eps=True, epsilon_ini=0.9, 
          n_sec_print=10, master=False, goal=495, len_history=100, render=False, weighted=False, 
          eps_fall=50000, callback=False, action_replay=1, reset=False):
     """
@@ -107,9 +107,9 @@ if __name__=="__main__":
     if len(args)>2:
         main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
             render=False, master=False, env_name="CartPole-v1", goal=495, learning_rate=0.001, 
-            weighted=False, algo="nstep", eps_fall=10000, callback=True)
+            weighted=False, algo="a3c", eps_fall=10000, callback=True)
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 256]}, 
             render=False, master=False, env_name="CartPole-v1", goal=495, learning_rate=0.001, 
-            weighted=False, algo="nstep", eps_fall=10000, callback=True, Itarget=100, action_replay=1, 
+            weighted=False, algo="a3c", eps_fall=10000, callback=True, Itarget=100, action_replay=1, 
             reset=True)
