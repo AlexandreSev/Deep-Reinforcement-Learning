@@ -183,32 +183,32 @@ class A3CNeuralNetwork():
         
     def build_loss(self):
         import tensorflow as tf
-        loss_list_policy = tf.log(tf.reduce_sum(tf.multiply(self.variables["actions"], self.variables["y_action"]), axis=1))
+        loss_list_policy = tf.log(0.01 + tf.reduce_sum(tf.multiply(self.variables["actions"], self.variables["y_action"]), axis=1))
         self.loss_policy = tf.reduce_sum(tf.multiply(loss_list_policy, self.variables["loss_policy_ph"]))
 
-        loss_list_vf = tf.nn.l2_loss(self.variables["values"] - self.variables["y_true"])
-        self.loss_vf = tf.reduce_sum(loss_list_vf)
+        self.loss_vf = tf.nn.l2_loss(self.variables["values"] - self.variables["y_true"])
+        
 
     def build_train_step(self):
         import tensorflow as tf
 
+        self.optimizer = tf.train.RMSPropOptimizer(self.decay_learning_rate,
+            decay=0.99, momentum=0., centered=True)
+
         keys = self.variables.keys()
         keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
                 (key[-7:] != "_assign")]
+
         common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
         policy_keys = [key for key in keys if "policy" in key]
         vf_keys = [key for key in keys if "vf" in key]
-        updates = []
-        for key in common_keys:
-            updates.append((tf.gradients(self.loss_policy, [self.variables[key]])[0], self.variables[key]))
-            updates.append((tf.gradients(self.loss_vf, [self.variables[key]])[0], self.variables[key]))
-        for key in policy_keys:
-            updates.append((tf.gradients(self.loss_policy, [self.variables[key]])[0], self.variables[key]))
-        for key in vf_keys:
-            updates.append((tf.gradients(self.loss_vf, [self.variables[key]])[0], self.variables[key]))
 
-        self.train_step = tf.train.RMSPropOptimizer(self.decay_learning_rate,
-            decay=0.99, momentum=0., centered=True).apply_gradients(updates,
+        self.updates = self.optimizer.compute_gradients(self.loss_policy, 
+                                [self.variables[key] for key in keys])
+        self.updates += self.optimizer.compute_gradients(self.loss_vf, 
+                                [self.variables[key] for key in keys])
+        
+        self.train_step = self.optimizer.apply_gradients(self.updates,
             global_step=self.global_step)
 
     def reset_lr(self, sess, init=False):
@@ -257,9 +257,8 @@ class A3CNeuralNetwork():
         assert(self.initialised, "This model must be initialised (self.initialisation())")
         reward = self.get_reward(observation, sess)
 
-        cor = max(-min(reward), 0)
-        reward = [i+cor for i in reward]
         proba = [i/np.sum(reward) for i in reward]
+        proba[-1] = 1 - np.sum(proba[:-1])
         action = np.random.choice(range(len(reward)), p=proba)
       
         return action, reward[action]
