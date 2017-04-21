@@ -199,10 +199,6 @@ class A3CNeuralNetwork():
         keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
                 (key[-7:] != "_assign")]
 
-        common_keys = [key for key in keys if ("policy" not in key) & ("vf" not in key)]
-        policy_keys = [key for key in keys if "policy" in key]
-        vf_keys = [key for key in keys if "vf" in key]
-
         self.updates = self.optimizer.compute_gradients(self.loss_policy, 
                                 [self.variables[key] for key in keys])
         self.updates += self.optimizer.compute_gradients(self.loss_vf, 
