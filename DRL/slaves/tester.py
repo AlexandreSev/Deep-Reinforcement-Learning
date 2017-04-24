@@ -3,6 +3,8 @@ import numpy as np
 import multiprocessing as mp
 import time
 import gym
+import os
+from os.path import join as pjoin
 
 from ..neuralnets import a3cnn, qnn 
 from ..utils.utils import epsilon_greedy_policy
@@ -18,7 +20,8 @@ class tester_worker(mp.Process):
     def __init__(self, algo="nstep", T_max=100000, t_max=500, env_name="CartPole-v0", 
                 model_option={"n_hidden":1, "hidden_size":[10]}, n_sec_print=10, 
                 goal=495, len_history=100, Itarget=100, render=False, weighted=False,
-                callback=None, callback_name="callbacks/tester", callback_batch_size=10, **kwargs):
+                callback=None, callback_name="callbacks/tester", callback_batch_size=10, 
+                checkpoint=600, checkpoints_path="./checkpoints", **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -55,7 +58,7 @@ class tester_worker(mp.Process):
 
         self.history = [-1000 for i in range(len_history)]
         self.goal = goal
-        self.max_mean = 0
+        self.max_mean = -1000
         self.current_mean = 0
         self.last_T = 0
         self.n_sec_print = n_sec_print
@@ -66,6 +69,13 @@ class tester_worker(mp.Process):
                                         observation_size=self.input_size)
         else:
             self.callback = None
+
+        n_temp =  "Try_" + str(len(os.listdir(checkpoints_path)) )
+        self.checkpoints_path = pjoin(checkpoints_path, n_temp)
+        os.mkdir(self.checkpoints_path)
+        self.checkpoints_path = pjoin(self.checkpoints_path, "intermediate_weights")
+        self.checkpoint = checkpoint
+        self.last_checkpoint = time.time()
 
     def add_history(self, reward):
         """
@@ -113,6 +123,13 @@ class tester_worker(mp.Process):
                 print("Max mean = %s"%self.max_mean)
                 print("Current mean = %s"%self.current_mean)
                 t_init = time.time()
+            
+            if time.time() - self.last_checkpoint > self.checkpoint:
+                self.last_checkpoint = time.time()
+                save_path = saver.save(self.sess, self.checkpoints_path)
+                print("Model saved in %s"%save_path)
+
+
 
             t = 0
             self.nb_env += 1
@@ -160,7 +177,6 @@ class tester_worker(mp.Process):
                 self.last_T = settings.T.value
 
         print("Training completed")
-        saver.save(self.sess, './end_training.weights')
         print("T final = %s"%self.last_T)
         print("Done in %s environments"%(self.nb_env-100))
         print("Done in %s seconds"%(time.time() - t_taken))
