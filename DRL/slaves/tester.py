@@ -21,7 +21,8 @@ class tester_worker(mp.Process):
                 model_option={"n_hidden":1, "hidden_size":[10]}, n_sec_print=10, 
                 goal=495, len_history=100, Itarget=100, render=False, weighted=False,
                 callback=None, callback_name="callbacks/tester", callback_batch_size=10, 
-                checkpoint=600, checkpoints_path="./checkpoints", **kwargs):
+                checkpoint=600, checkpoints_path="./checkpoints", warmstart=False, 
+                weights_path = "./checkpoints/cartpole_v1_150/intermediate_weights", **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -77,6 +78,9 @@ class tester_worker(mp.Process):
         self.checkpoint = checkpoint
         self.last_checkpoint = time.time()
 
+        self.warmstart = warmstart
+        self.weights_path = weights_path
+
     def add_history(self, reward):
         """
         Add a value to the history and remove the last one
@@ -110,6 +114,11 @@ class tester_worker(mp.Process):
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
+        if self.warmstart:
+            self.nn.read_value_from_theta(self.sess, settings.l_theta)
+            saver.restore(self.sess, self.weights_path)
+            self.nn.assign_value_to_theta(self.sess)
+            print("Model successfully loaded")
 
         observation = self.env.reset()
 
