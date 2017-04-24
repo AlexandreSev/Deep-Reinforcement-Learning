@@ -191,7 +191,7 @@ class slave_worker_a3c(mp.Process):
                 vf = self.sess.run(self.a3cnn.variables["values"],
                     feed_dict={self.a3cnn.variables["input_observation"]: observation_batch[i].reshape((1, -1))})[0,0]
                 true_reward.append(R)
-                policy_loss.append(vf - R)
+                policy_loss.append(R - vf)
 
             if self.callback:
                 estimated_rewards_env += true_reward[::-1]

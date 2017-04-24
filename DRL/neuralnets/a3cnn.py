@@ -184,11 +184,12 @@ class A3CNeuralNetwork():
     def build_loss(self):
         import tensorflow as tf
 
-        pi_actions = tf.reduce_sum(tf.multiply(self.variables["actions"], self.variables["y_action"]), axis=1)
-        log_pi = tf.log(0.01 + pi_actions)
+        log_pi = tf.log(tf.clip_by_value(self.variables["actions"], 1e-10, 1.))
+        pi_actions = tf.reduce_sum(tf.multiply(log_pi , self.variables["y_action"]), axis=1)
+        
 
-        self.loss_policy = tf.reduce_sum(tf.multiply(log_pi, self.variables["loss_policy_ph"])) \
-            + self.beta_reg * tf.reduce_sum(tf.multiply(log_pi, pi_actions))
+        self.loss_policy = - tf.reduce_sum(tf.multiply(pi_actions, self.variables["loss_policy_ph"])) \
+            - self.beta_reg * tf.reduce_sum(tf.multiply(self.variables["actions"], log_pi))
 
         self.loss_vf = tf.nn.l2_loss(self.variables["values"] - self.variables["y_true"])
         
@@ -242,10 +243,12 @@ class A3CNeuralNetwork():
             observation: np.array, state of the environnement
             sess: tensorflow session, allow multiprocessing
         """
-        assert(self.initialised, "This model must be initialised (self.initialisation())")
-        reward = self.get_reward(observation, sess)
+        assert self.initialised, "This model must be initialised (self.initialisation())"
+        feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
+        reward = np.squeeze(sess.run(self.variables["actions"], feed_dict=feed_dic))
+        value = sess.run(self.variables["values"], feed_dict = feed_dic)
       
-        return np.argmax(reward), np.max(reward)
+        return np.random.choice(range(len(reward)), p = reward), value[0, 0]
 
     def weighted_choice(self, observation, sess):
         """
