@@ -22,7 +22,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
          Itarget=100, gamma=0.9, learning_rate=0.001, several_eps=True, epsilon_ini=0.9, 
          n_sec_print=10, master=False, goal=495, len_history=100, render=False, weighted=False, 
          eps_fall=50000, callback=False, action_replay=1, reset=False, warmstart=False, 
-         weights_path="./Acrobot_v1/intermediate_weights", **kwargs):
+         weights_path="./Acrobot_v1/intermediate_weights", nb_render=5, **kwargs):
     """
     Parameters:
         nb_process: number of slaves used in the training
@@ -49,8 +49,27 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
 
     env_temp = gym.make(env_name)
 
+    
+    if type(env_temp.observation_space) == gym.spaces.discrete.Discrete:
+        input_size = [env_temp.observation_space.n]
+    else:
+        input_size = [env_temp.observation_space.shape[0]]
+
+    if type(env_temp.action_space) == gym.spaces.tuple_space.Tuple:
+        output_size = []
+        for space in env_temp.action_space.spaces:
+            if type(space) == gym.spaces.discrete.Discrete:
+                output_size.append(space.n)
+            else:
+                NotImplementedError
+    else:
+        output_size = [env_temp.action_space.n]
+
+
+    
+
     init(algo=algo, n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
-         input_size= env_temp.observation_space.shape[0], output_size=env_temp.action_space.n)
+         input_size=input_size, output_size=output_size)
     """
     init(algo=algo, n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
          input_size= env_temp.observation_space.shape[0], output_size=env_temp.action_space.n)
@@ -83,7 +102,8 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
     exemple = tester_worker(algo=algo, T_max=T_max, t_max=10000, model_option=model_option, env_name=env_name, 
                             n_sec_print=n_sec_print, goal=goal, len_history=len_history, Itarget=Itarget,
                             render=render, weighted=weighted, callback=callback, 
-                            callback_name="callbacks/tester", warmstart=warmstart, weights_path=weights_path)
+                            callback_name="callbacks/tester", warmstart=warmstart, 
+                            weights_path=weights_path, nb_render=nb_render)
     exemple.start()
 
     for i in range(nb_process):
@@ -113,6 +133,7 @@ if __name__=="__main__":
             weighted=False, algo="a3c", eps_fall=10000, callback=True)
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 256]}, 
-            render=False, master=False, env_name="CartPole-v1", goal=9900, learning_rate=0.001, 
+            render=True, master=False, env_name="Copy-v0", goal=9900, learning_rate=0.001, 
             weighted=False, algo="a3c", eps_fall=100000, callback=True, Itarget=100, action_replay=1, 
-            reset=True, warmstart=True, weights_path="./checkpoints/cartpole_v1/intermediate_weights")
+            reset=True, warmstart=False, weights_path="./checkpoints/cartpole_v1/intermediate_weights",
+            nb_render=500)

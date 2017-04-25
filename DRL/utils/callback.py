@@ -12,8 +12,8 @@ class callback():
 		self.counter = 0
 		self.rewards = np.zeros(batch_size)
 		self.random = np.zeros(batch_size)
-		self.action = np.zeros(batch_size)
-		self.observation = np.zeros((batch_size, observation_size))
+		self.action = np.zeros((batch_size, action_size))
+		self.observation = np.zeros([batch_size] + observation_size)
 		self.diff = []
 		self.rpe = []
 		self.epsilon = []

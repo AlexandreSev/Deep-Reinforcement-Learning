@@ -80,16 +80,18 @@ def initialise_a3c(input_size=4, output_size=2, n_hidden=2, hidden_size=[128, 64
     """
     l_theta = mp.Manager().list()
     
-    shapes = [(input_size, hidden_size[0])]
+    shapes = [input_size + [hidden_size[0]]]
     for i in range(n_hidden - 1):
         shapes.append((hidden_size[i], hidden_size[i+1]))
-    shapes.append((hidden_size[-1], output_size))
+    for i in output_size:
+        shapes.append((hidden_size[-1], i))
     shapes.append((hidden_size[-1], 1))
 
     shapes.append((1, hidden_size[0]))
     for i in range(n_hidden - 1):
         shapes.append((1, hidden_size[i+1]))
-    shapes.append((1, output_size))
+    for i in output_size:
+        shapes.append((1, i))
     shapes.append((1, 1))
     
     for i, shape in enumerate(shapes):

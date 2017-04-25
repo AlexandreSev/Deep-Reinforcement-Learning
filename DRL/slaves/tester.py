@@ -22,7 +22,8 @@ class tester_worker(mp.Process):
                 goal=495, len_history=100, Itarget=100, render=False, weighted=False,
                 callback=None, callback_name="callbacks/tester", callback_batch_size=10, 
                 checkpoint=600, checkpoints_path="./checkpoints", warmstart=False, 
-                weights_path="./checkpoints/cartpole_v1_150/intermediate_weights", **kwargs):
+                weights_path="./checkpoints/cartpole_v1_150/intermediate_weights", nb_render=1, 
+                **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -41,12 +42,29 @@ class tester_worker(mp.Process):
         self.T_max = T_max
         self.t_max = t_max
         self.env = gym.make(env_name)
-        self.output_size = self.env.action_space.n
-        self.input_size = self.env.observation_space.shape[0]
+
+        if type(self.env.observation_space) == gym.spaces.discrete.Discrete:
+            self.input_size = [self.env.observation_space.n]
+            self.decode_obs = lambda r: np.eye(self.env.observation_space.n)[r]
+        else:
+            self.input_size = [self.env.observation_space.shape[0]]
+            self.decode_obs = lambda r: r
+
+        if type(self.env.action_space) == gym.spaces.tuple_space.Tuple:
+            self.output_size = []
+            for space in self.env.action_space.spaces:
+                if type(space) == gym.spaces.discrete.Discrete:
+                    self.output_size.append(space.n)
+                else:
+                    NotImplementedError
+        else:
+            self.output_size = [self.env.action_space.n]
+
         self.nb_env = 0
         self.Itarget = Itarget
         self.counter_T = Itarget
         self.render=render
+        self.nb_render = nb_render
         self.weighted=weighted
         self.algo = algo
         
@@ -67,7 +85,7 @@ class tester_worker(mp.Process):
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
-                                        observation_size=self.input_size)
+                                        observation_size=self.input_size, action_size=len(self.output_size))
         else:
             self.callback = None
 
@@ -122,8 +140,10 @@ class tester_worker(mp.Process):
             print("Model successfully loaded")
 
         observation = self.env.reset()
+        observation = self.decode_obs(observation)
 
         epsilon=0.
+        nb_env = 0
 
         t_init = time.time()
         while (settings.T.value<self.T_max) & (not self.stoping_criteria()):
@@ -150,7 +170,7 @@ class tester_worker(mp.Process):
             self.nn.read_value_from_theta(self.sess, settings.l_theta)
             while t<self.t_max:
 
-                if self.render:
+                if self.render & (nb_env % self.nb_render == 0):
                     self.env.render()
 
                 t += 1
@@ -164,6 +184,7 @@ class tester_worker(mp.Process):
                                                   self.sess, self.policy, self.weighted)
 
                 observation_prime, reward, done, info = self.env.step(action) 
+                observation_prime = self.decode_obs(observation_prime)
 
                 current_reward += reward
 
@@ -173,6 +194,7 @@ class tester_worker(mp.Process):
                 if done:
                     #print("DONE in %s timesteps"%t)
                     observation = self.env.reset()
+                    observation = self.decode_obs(observation)
                     self.add_history(current_reward)
                     t += self.t_max
                     if self.callback:
@@ -182,11 +204,14 @@ class tester_worker(mp.Process):
 
             if not done:
                 observation = self.env.reset()
+                observation = self.decode_obs(observation)
                 self.add_history(current_reward)
                 if self.callback:
                     self.callback.store_rpe(current_reward)
             else:
                 self.last_T = settings.T.value
+
+            nb_env += 1
 
         print("Training completed")
         save_path = saver.save(self.sess, self.final_weights_path)

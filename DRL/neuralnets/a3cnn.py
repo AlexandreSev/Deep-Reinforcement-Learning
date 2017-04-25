@@ -128,7 +128,7 @@ class A3CNeuralNetwork():
         Parameters:
             name: string, used to complete every name of variables, usefull to create two NNs
         """
-        self.create_weight_variable([self.input_size, self.hidden_size[0]], name="W1")
+        self.create_weight_variable(self.input_size + [self.hidden_size[0]], name="W1")
         self.create_bias_variable((1, self.hidden_size[0]), name="b1")
 
         for i in range(self.n_hidden-1):
@@ -137,10 +137,11 @@ class A3CNeuralNetwork():
             self.create_bias_variable((1, self.hidden_size[i+1]), name="b"+str(i+2))
 
 
-        self.create_weight_variable([self.hidden_size[-1], self.output_size],
-            name="Wo_policy", type_layer="policy")
-        self.create_bias_variable((1, self.output_size), name="bo_policy",
-            type_layer="policy")
+        for i in range(len(self.output_size)):
+            self.create_weight_variable((self.hidden_size[-1], self.output_size[i]),
+                name="Wo_policy_%s"%i, type_layer="policy")
+            self.create_bias_variable((1, self.output_size[i]), name="bo_policy_%s"%i,
+                type_layer="policy")
 
         self.create_weight_variable([self.hidden_size[-1], 1], name="Wo_vf",
             type_layer="vf")
@@ -153,12 +154,15 @@ class A3CNeuralNetwork():
         import tensorflow as tf
 
         self.variables["input_observation"] = tf.placeholder(tf.float32, 
-            shape=[None, self.input_size], name="i_observation")
+            shape=[None] + self.input_size, name="i_observation")
 
         self.variables["y_true"] = tf.placeholder(tf.float32, shape=[None], name="y_true")
 
-        self.variables["y_action"] = tf.placeholder(tf.float32, shape=[None, self.output_size], 
-            name="action")
+        self.variables["y_action"] = [tf.placeholder(tf.float32, shape=(None, self.output_size[0]), 
+            name="action_0")]
+        for i in range(1, len(self.output_size)):
+            self.variables["y_action"].append(tf.placeholder(tf.float32, shape=(None, self.output_size[i]), 
+            name="action_%s"%i))
 
         self.variables["loss_policy_ph"] = tf.placeholder(tf.float32, shape=[None], 
             name="loss_policy")
@@ -178,18 +182,25 @@ class A3CNeuralNetwork():
             y = tf.nn.relu(tf.matmul(y, self.variables["W"+str(i+2)]) + 
                            self.variables["b"+str(i+2)], name="y"+str(i+2))
         
-        self.variables["actions"] = tf.nn.softmax(tf.matmul(y, self.variables["Wo_policy"]) + self.variables["bo_policy"])
+        self.variables["actions"] = [tf.nn.softmax(tf.matmul(y, self.variables["Wo_policy_0"]) + self.variables["bo_policy_0"])]
+        for i in range(1, len(self.output_size)):
+            self.variables["actions"].append(tf.nn.softmax(tf.matmul(y, self.variables["Wo_policy_%s"%i]) + self.variables["bo_policy_%s"%i]))
         self.variables["values"] = tf.matmul(y, self.variables["Wo_vf"]) + self.variables["bo_vf"]
         
     def build_loss(self):
         import tensorflow as tf
 
-        log_pi = tf.log(tf.clip_by_value(self.variables["actions"], 1e-10, 1.))
-        pi_actions = tf.reduce_sum(tf.multiply(log_pi , self.variables["y_action"]), axis=1)
+        log_pi = [tf.log(tf.clip_by_value(self.variables["actions"][0], 1e-20, 1.))]
+        pi_actions = [tf.reduce_sum(tf.multiply(log_pi[0] , self.variables["y_action"][0]), axis=1)]
+        for i in range(1, len(self.output_size)):
+            log_pi.append(tf.log(tf.clip_by_value(self.variables["actions"][i], 1e-10, 1.)))
+            pi_actions.append(tf.reduce_sum(tf.multiply(log_pi[i] , self.variables["y_action"][i]), axis=1))
         
 
-        self.loss_policy = - tf.reduce_sum(tf.multiply(pi_actions, self.variables["loss_policy_ph"])) \
-            - self.beta_reg * tf.reduce_sum(tf.multiply(self.variables["actions"], log_pi))
+        self.loss_policy = - tf.reduce_sum(tf.multiply(pi_actions, self.variables["loss_policy_ph"]))
+
+        for i in range(len(log_pi)):
+            self.loss_policy -= self.beta_reg * tf.reduce_sum(tf.multiply(self.variables["actions"][i], log_pi[i]))
 
         self.loss_vf = tf.nn.l2_loss(self.variables["values"] - self.variables["y_true"])
         
@@ -235,7 +246,8 @@ class A3CNeuralNetwork():
 
     def get_reward(self, observation, sess):
         feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-        reward = np.squeeze(sess.run(self.variables["actions"], feed_dict=feed_dic))
+        reward = sess.run(self.variables["actions"], feed_dict=feed_dic)
+        reward = [np.squeeze(i) for i in reward]
         return reward
 
     def best_choice(self, observation, sess):
@@ -247,11 +259,19 @@ class A3CNeuralNetwork():
         """
         assert self.initialised, "This model must be initialised (self.initialisation())"
         feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-        reward = np.squeeze(sess.run(self.variables["actions"], feed_dict=feed_dic))
-        reward[-1] = 1 - np.sum(reward[:-1])
+        reward_temp = sess.run(self.variables["actions"], feed_dict=feed_dic)
+        reward = []
+        for i in reward_temp:
+            reward.append(np.squeeze(i))
         value = sess.run(self.variables["values"], feed_dict = feed_dic)
-      
-        return np.random.choice(range(len(reward)), p = reward), value[0, 0]
+        try:
+            choice = [np.random.choice(range(len(i)), p = i) for i in reward]
+        except:
+            print("######################" * 50)
+            print(reward)
+            print("######################" * 50)
+            raise ValueError
+        return choice, value[0, 0]
 
     def weighted_choice(self, observation, sess):
         """

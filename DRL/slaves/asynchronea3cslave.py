@@ -43,8 +43,24 @@ class slave_worker_a3c(mp.Process):
         self.t_max = t_max
         self.gamma = gamma
         self.env = gym.make(env_name)
-        self.output_size = self.env.action_space.n
-        self.input_size = self.env.observation_space.shape[0]
+
+        if type(self.env.observation_space) == gym.spaces.discrete.Discrete:
+            self.input_size = [self.env.observation_space.n]
+            self.decode_obs = lambda r: np.eye(self.env.observation_space.n)[r]
+        else:
+            self.input_size = [self.env.observation_space.shape[0]]
+            self.decode_obs = lambda r: r
+
+        if type(self.env.action_space) == gym.spaces.tuple_space.Tuple:
+            self.output_size = []
+            for space in self.env.action_space.spaces:
+                if type(space) == gym.spaces.discrete.Discrete:
+                    self.output_size.append(space.n)
+                else:
+                    NotImplementedError
+        else:
+            self.output_size = [self.env.action_space.n]
+
         self.verbose = verbose
         self.epsilon_ini = epsilon_ini
         self.weighted = weighted
@@ -58,7 +74,7 @@ class slave_worker_a3c(mp.Process):
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
-                                    observation_size=self.input_size)
+                                    observation_size=self.input_size, action_size=len(self.output_size))
         else:
             self.callback = None
 
@@ -99,6 +115,7 @@ class slave_worker_a3c(mp.Process):
         action_replay = 1
 
         observation = self.env.reset()
+        observation = self.decode_obs(observation)
 
         rewards_env = []
         estimated_rewards_env = []
@@ -135,7 +152,8 @@ class slave_worker_a3c(mp.Process):
                 else:
                     action_replay -= 1
 
-                observation, reward, done, info = self.env.step(action) 
+                observation, reward, done, info = self.env.step(action)
+                observation = self.decode_obs(observation)
 
                 t_env +=1
                 
@@ -155,6 +173,7 @@ class slave_worker_a3c(mp.Process):
                 if done:
                     nb_env += 1
                     observation = self.env.reset()
+                    observation = self.decode_obs(observation)
                     if self.callback:
                         self.callback.store_rpe(rpe)
                         self.callback.store_hp(epsilon, self.sess.run(self.a3cnn.decay_learning_rate))
@@ -169,7 +188,7 @@ class slave_worker_a3c(mp.Process):
                     epsilon -= (1 - self.epsilon_ini)/self.eps_fall
 
                 if self.reset & (self.sess.run(self.a3cnn.decay_learning_rate) < minlr) :
-                    minlr /= 10
+                    minlr /= 2
                     epsilon = 1
                     self.count_T_reset = settings.T.value
                     self.a3cnn.reset_lr(self.sess)
@@ -182,7 +201,13 @@ class slave_worker_a3c(mp.Process):
 
             observation_batch = observation_batch[1:, :]
             action_batch.reverse()
-            action_batch_multiplier = np.eye(self.output_size)[action_batch]
+            if len(self.output_size) == 1:
+                action_batch = [[i] for i in action_batch]
+            action_batch = np.array(action_batch)
+
+            action_batch_multiplier = [np.eye(self.output_size[0])[action_batch[:, 0]]]
+            for i in range(1, len(self.output_size)):
+                action_batch_multiplier.append(np.eye(self.output_size[i])[action_batch[:,i]])
 
             true_reward = []
             policy_loss = []
@@ -196,12 +221,13 @@ class slave_worker_a3c(mp.Process):
             if self.callback:
                 estimated_rewards_env += true_reward[::-1]
                 if done:
-                    history = np.zeros((len(estimated_rewards_env), 4 + self.output_size))
+                    history = np.zeros((len(estimated_rewards_env), 4 + np.sum(self.output_size)))
                     history[:, 0] = np.arange(len(estimated_rewards_env))
                     history[:, 1] = rewards_env
                     history[:, 2] = estimated_rewards_env
                     history[:, 3] = nb_env * np.ones(len(estimated_rewards_env))
-                    history[:, 4:] = np.array(rewards)
+                    temp = np.array([np.concatenate(i) for i in rewards])
+                    history[:, 4:] = temp
                     self.callback.write_history(history)
                     rewards_env = []
                     estimated_rewards_env = []
@@ -215,8 +241,10 @@ class slave_worker_a3c(mp.Process):
             
             feed_dict = {self.a3cnn.variables["input_observation"]: observation_batch[shuffle, :],
                          self.a3cnn.variables["y_true"]: y_batch_arr[shuffle], 
-                         self.a3cnn.variables["y_action"]: action_batch_multiplier[shuffle, :],
                          self.a3cnn.variables["loss_policy_ph"]: policy_loss[shuffle]}
+            for i in range(len(self.output_size)):
+                feed_dict[self.a3cnn.variables["y_action"][i]] = action_batch_multiplier[i][shuffle, :]
+            
 
             #print(self.sess.run(self.a3cnn.updates, feed_dict=feed_dict))
             summary, _ = self.sess.run([self.a3cnn.merged, self.a3cnn.train_step], feed_dict=feed_dict)
