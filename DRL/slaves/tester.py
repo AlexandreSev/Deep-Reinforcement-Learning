@@ -22,7 +22,7 @@ class tester_worker(mp.Process):
                 goal=495, len_history=100, Itarget=100, render=False, weighted=False,
                 callback=None, callback_name="callbacks/tester", callback_batch_size=10, 
                 checkpoint=600, checkpoints_path="./checkpoints", warmstart=False, 
-                weights_path = "./checkpoints/cartpole_v1_150/intermediate_weights", **kwargs):
+                weights_path="./checkpoints/cartpole_v1_150/intermediate_weights", **kwargs):
         """
         Parameters:
             T_max: maximum number of iterations
@@ -75,6 +75,7 @@ class tester_worker(mp.Process):
         self.checkpoints_path = pjoin(checkpoints_path, n_temp)
         os.mkdir(self.checkpoints_path)
         self.checkpoints_path = pjoin(self.checkpoints_path, "intermediate_weights")
+        self.final_weights_path = pjoin(self.checkpoints_path, "final_weights")
         self.checkpoint = checkpoint
         self.last_checkpoint = time.time()
 
@@ -136,7 +137,9 @@ class tester_worker(mp.Process):
             if time.time() - self.last_checkpoint > self.checkpoint:
                 self.last_checkpoint = time.time()
                 save_path = saver.save(self.sess, self.checkpoints_path)
-                print("Model saved in %s"%save_path)
+                print("######################################")
+                print("# Model saved in %s #"%save_path)
+                print("######################################")
 
 
 
@@ -145,7 +148,6 @@ class tester_worker(mp.Process):
             current_reward = 0
 
             self.nn.read_value_from_theta(self.sess, settings.l_theta)
-            
             while t<self.t_max:
 
                 if self.render:
@@ -169,9 +171,10 @@ class tester_worker(mp.Process):
                     self.callback.store(reward, 0, action, observation, 0)
 
                 if done:
+                    #print("DONE in %s timesteps"%t)
                     observation = self.env.reset()
                     self.add_history(current_reward)
-                    t += self.T_max
+                    t += self.t_max
                     if self.callback:
                         self.callback.store_rpe(current_reward)
                 else:
@@ -186,6 +189,8 @@ class tester_worker(mp.Process):
                 self.last_T = settings.T.value
 
         print("Training completed")
+        save_path = saver.save(self.sess, self.final_weights_path)
+        print("Model saved in %s"%save_path)
         print("T final = %s"%self.last_T)
         print("Done in %s environments"%(self.nb_env-100))
         print("Done in %s seconds"%(time.time() - t_taken))

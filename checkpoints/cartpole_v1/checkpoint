@@ -1,0 +1,2 @@
+model_checkpoint_path: "intermediate_weights"
+all_model_checkpoint_paths: "intermediate_weights"

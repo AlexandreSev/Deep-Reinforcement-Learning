@@ -228,8 +228,10 @@ class A3CNeuralNetwork():
             temp = sess.run(self.decay_steps) * 2
             sess.run(self.decay_steps_assign, feed_dict={self.decay_steps_pl: temp})
         
-        self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
-            global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
+        #self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
+        #    global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
+
+        self.decay_learning_rate = self.learning_rate - self.global_step / self.decay_steps * self.learning_rate * 1e-3
 
     def get_reward(self, observation, sess):
         feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
@@ -246,6 +248,7 @@ class A3CNeuralNetwork():
         assert self.initialised, "This model must be initialised (self.initialisation())"
         feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
         reward = np.squeeze(sess.run(self.variables["actions"], feed_dict=feed_dic))
+        reward[-1] = 1 - np.sum(reward[:-1])
         value = sess.run(self.variables["values"], feed_dict = feed_dic)
       
         return np.random.choice(range(len(reward)), p = reward), value[0, 0]
