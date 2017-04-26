@@ -51,15 +51,21 @@ class slave_worker_a3c(mp.Process):
             self.input_size = [self.env.observation_space.shape[0]]
             self.decode_obs = lambda r: r
 
-        if type(self.env.action_space) == gym.spaces.tuple_space.Tuple:
+        if type(self.env.action_space) == gym.spaces.box.Box:
+            self.output_size = [50]
+            action_range = self.env.action_space.high[0] - self.env.action_space.low[0]
+            self.action_space = [self.env.action_space.low[0] + action_range * (i+.5) / self.output_size[0]
+                for i in range(self.output_size[0])]
+        elif type(self.env.action_space) == gym.spaces.discrete.Discrete:
+            self.output_size = [self.env.action_space.n]
+            self.action_space = [i for i in range(self.output_size[0])]
+        elif type(self.env.action_space) == gym.spaces.tuple_space.Tuple:
             self.output_size = []
             for space in self.env.action_space.spaces:
                 if type(space) == gym.spaces.discrete.Discrete:
                     self.output_size.append(space.n)
                 else:
                     NotImplementedError
-        else:
-            self.output_size = [self.env.action_space.n]
 
         self.verbose = verbose
         self.epsilon_ini = epsilon_ini
@@ -79,7 +85,7 @@ class slave_worker_a3c(mp.Process):
             self.callback = None
 
         if policy is None:
-            self.policy = self.env.action_space.sample
+            self.policy = np.random.randint
         else:
             self.policy = policy
 
@@ -146,13 +152,21 @@ class slave_worker_a3c(mp.Process):
                     feed_dict={self.a3cnn.global_step_pl: settings.T.value - self.count_T_reset})
 
                 if action_replay == 1:
-                    random, action = epsilon_greedy_policy(self.a3cnn, observation, epsilon, self.env, 
+                    random, action = epsilon_greedy_policy(self.a3cnn, observation, epsilon, self.output_size, 
                                                     self.sess, self.policy, self.weighted)
+                    if type(self.env.action_space) == gym.spaces.discrete.Discrete:
+                        action = action[0]
+                        env_action = action
+                    elif type(self.env.action_space) == gym.spaces.box.Box:
+                        env_action = [self.action_space[action[i]] for i in range(len(action))]
+                        action = action[0]
+                    else:
+                        env_action = action
                     action_replay = self.action_replay
                 else:
                     action_replay -= 1
 
-                observation, reward, done, info = self.env.step(action)
+                observation, reward, done, info = self.env.step(env_action)
                 observation = self.decode_obs(observation)
 
                 t_env +=1

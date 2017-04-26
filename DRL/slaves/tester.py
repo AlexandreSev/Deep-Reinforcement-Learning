@@ -50,15 +50,21 @@ class tester_worker(mp.Process):
             self.input_size = [self.env.observation_space.shape[0]]
             self.decode_obs = lambda r: r
 
-        if type(self.env.action_space) == gym.spaces.tuple_space.Tuple:
+        if type(self.env.action_space) == gym.spaces.box.Box:
+            self.output_size = [50]
+            action_range = self.env.action_space.high - self.env.action_space.low
+            self.action_space = [self.env.action_space.low + action_range * (i+.5) / self.output_size 
+                for i in range(self.output_size[0])]
+        elif type(self.env.action_space) == gym.spaces.discrete.Discrete:
+            self.output_size = [self.env.action_space.n]
+            self.action_space = [i for i in range(self.output_size[0])]
+        elif type(self.env.action_space) == gym.spaces.tuple_space.Tuple:
             self.output_size = []
             for space in self.env.action_space.spaces:
                 if type(space) == gym.spaces.discrete.Discrete:
                     self.output_size.append(space.n)
                 else:
                     NotImplementedError
-        else:
-            self.output_size = [self.env.action_space.n]
 
         self.nb_env = 0
         self.Itarget = Itarget
@@ -180,10 +186,19 @@ class tester_worker(mp.Process):
                     for i, theta_minus in enumerate(settings.l_theta_minus):
                         settings.l_theta_minus[i] = settings.l_theta[i]
 
-                _, action = epsilon_greedy_policy(self.nn, observation, epsilon, self.env,
+                _, action = epsilon_greedy_policy(self.nn, observation, epsilon, self.output_size,
                                                   self.sess, self.policy, self.weighted)
+                
+                if type(self.env.action_space) == gym.spaces.discrete.Discrete:
+                    env_action = action[0]
+                    action = env_action
+                elif type(self.env.action_space) == gym.spaces.box.Box:
+                    env_action = [self.action_space[action[i]] for i in range(len(action))]
+                    action = action[0]
+                else:
+                    env_action = action
 
-                observation_prime, reward, done, info = self.env.step(action) 
+                observation_prime, reward, done, info = self.env.step(env_action)
                 observation_prime = self.decode_obs(observation_prime)
 
                 current_reward += reward

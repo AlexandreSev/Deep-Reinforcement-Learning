@@ -2,26 +2,26 @@
 import numpy as np
 import multiprocessing as mp
 
-def epsilon_greedy_policy(qnn, observation, epsilon, env, sess, policy=None, weighted=False):
-	"""
-	Take a random action with the probability epsilon, else the best action estimated by the qnn.
-	Parameters:
-		qnn: qnn.QNeuralNetwork, estimator of the Q function
-		observation: current state
-		epsilon: probability of taking a random action
-		env: environnment gym
-		sess: tensorflow Session
-		policy: policy to take a random action. If None, take a uniform law
-	"""
-	u = np.random.binomial(1, epsilon)
-	if u:
-		if policy is None:
-			return 1, env.action_space.sample()
-		else:
-			action = policy()
-			return 1, action
-	else:
-		return 0, qnn.best_action(observation, sess, weighted)
+def epsilon_greedy_policy(qnn, observation, epsilon, output_size, sess, policy=None, weighted=False):
+    """
+    Take a random action with the probability epsilon, else the best action estimated by the qnn.
+    Parameters:
+        qnn: qnn.QNeuralNetwork, estimator of the Q function
+        observation: current state
+        epsilon: probability of taking a random action
+        env: environnment gym
+        sess: tensorflow Session
+        policy: policy to take a random action. If None, take a uniform law
+    """
+    u = np.random.binomial(1, epsilon)
+    if u:
+        if policy is None:
+            return 1, [np.random.randint(i) for i in output_size]
+        else:
+            action = [policy(i) for i in output_size]
+            return 1, action
+    else:
+        return 0, qnn.best_action(observation, sess, weighted)
 
 def create_list_epsilon(n):
     """
