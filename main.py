@@ -133,7 +133,7 @@ if __name__=="__main__":
             weighted=False, algo="a3c", eps_fall=10000, callback=True)
     else:
         main(8, T_max=10000000, model_option={"n_hidden":2, "hidden_size":[128, 256]}, 
-            render=True, master=False, env_name="Copy-v0", goal=9900, learning_rate=0.001, 
+            render=False, master=False, env_name="CartPole-v1", goal=9900, learning_rate=0.001, 
             weighted=False, algo="a3c", eps_fall=100000, callback=True, Itarget=100, action_replay=1, 
-            reset=True, warmstart=False, weights_path="./checkpoints/cartpole_v1/intermediate_weights",
-            nb_render=500)
+            reset=True, warmstart=True, weights_path="./checkpoints/cartpole_v1/intermediate_weights",
+            nb_render=500, t_max=5)

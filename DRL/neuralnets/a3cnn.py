@@ -196,8 +196,9 @@ class A3CNeuralNetwork():
             log_pi.append(tf.log(tf.clip_by_value(self.variables["actions"][i], 1e-10, 1.)))
             pi_actions.append(tf.reduce_sum(tf.multiply(log_pi[i] , self.variables["y_action"][i]), axis=1))
         
-
-        self.loss_policy = - tf.reduce_sum(tf.multiply(pi_actions, self.variables["loss_policy_ph"]))
+        self.loss_policy = 0.
+        for j in pi_actions:
+            self.loss_policy += -tf.reduce_sum(tf.multiply(j, self.variables["loss_policy_ph"]))
 
         for i in range(len(log_pi)):
             self.loss_policy -= self.beta_reg * tf.reduce_sum(tf.multiply(self.variables["actions"][i], log_pi[i]))
@@ -215,8 +216,10 @@ class A3CNeuralNetwork():
         keys = [key for key in keys if (key not in ["input_observation", "y_true", "y_action", "actions", "values"]) & (key[-3:] != "_ph") & \
                 (key[-7:] != "_assign")]
 
-        self.updates = self.optimizer.compute_gradients(self.loss_policy, 
-                                [self.variables[key] for key in keys])
+        self.updates = []
+        #for i in range(len(self.loss_policy)):
+        self.updates += self.optimizer.compute_gradients(self.loss_policy,#[i], 
+                                        [self.variables[key] for key in keys])
         self.updates += self.optimizer.compute_gradients(self.loss_vf, 
                                 [self.variables[key] for key in keys])
         
@@ -271,6 +274,8 @@ class A3CNeuralNetwork():
             print(reward)
             print("######################" * 50)
             raise ValueError
+        if len(choice) == 1:
+            choice = choice[0]
         return choice, value[0, 0]
 
     def weighted_choice(self, observation, sess):
