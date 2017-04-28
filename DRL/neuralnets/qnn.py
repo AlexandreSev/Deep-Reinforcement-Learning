@@ -124,7 +124,7 @@ class QNeuralNetwork():
         Parameters:
             name: string, used to complete every name of variables, usefull to create two NNs
         """
-        self.create_weight_variable([self.input_size, self.hidden_size[0]], name="W1")
+        self.create_weight_variable(self.input_size + [self.hidden_size[0]], name="W1")
 
         self.create_bias_variable((1, self.hidden_size[0]), name="b1")
 
@@ -134,10 +134,10 @@ class QNeuralNetwork():
 
             self.create_bias_variable((1, self.hidden_size[i+1]), name="b"+str(i+2))
 
+        for i in range(len(self.output_size)):
+            self.create_weight_variable([self.hidden_size[-1], self.output_size[i]], name="Wo_%s"%i)
 
-        self.create_weight_variable([self.hidden_size[-1], self.output_size], name="Wo")
-
-        self.create_bias_variable((1, self.output_size), name="bo")
+            self.create_bias_variable((1, self.output_size[i]), name="bo_%s"%i)
 
     def create_placeholders(self):
         """
@@ -146,12 +146,15 @@ class QNeuralNetwork():
         import tensorflow as tf
 
         self.variables["input_observation"] = tf.placeholder(tf.float32, 
-            shape=[None, self.input_size], name="i_observation")
+            shape=[None] + self.input_size, name="i_observation")
 
         self.variables["y_true"] = tf.placeholder(tf.float32, shape=[None], name="y_true")
 
-        self.variables["y_action"] = tf.placeholder(tf.float32, shape=[None, self.output_size], 
-            name="action")
+        self.variables["y_action"] = [tf.placeholder(tf.float32, shape=[None, self.output_size[0]], 
+                name="action_0")]
+        for i in range(1, len(self.output_size)):
+            self.variables["y_action"] += [tf.placeholder(tf.float32, shape=[None, self.output_size[i]], 
+                name="action_%s"%i)]
 
     def build_model(self):
         """
@@ -168,7 +171,9 @@ class QNeuralNetwork():
             y = tf.nn.relu(tf.matmul(y, self.variables["W"+str(i+2)]) + 
                            self.variables["b"+str(i+2)], name="y"+str(i+2))
         
-        self.variables["y"] = tf.matmul(y, self.variables["Wo"]) + self.variables["bo"]
+        self.variables["y"] = [tf.matmul(y, self.variables["Wo_0"]) + self.variables["bo_0"]]
+        for i in range(1, len(self.output_size)):
+            self.variables["y"] += [tf.matmul(y, self.variables["Wo_%s"%i]) + self.variables["bo_%s"%i]]
 
     def build_loss(self):
         """
@@ -176,8 +181,8 @@ class QNeuralNetwork():
         """
         import tensorflow as tf
 
-        y_1d = tf.reduce_sum(tf.multiply(self.variables["y"], self.variables["y_action"]), axis=1)
-        loss = tf.nn.l2_loss(y_1d - self.variables["y_true"])
+        y_1d = [tf.reduce_sum(tf.multiply(self.variables["y"][i], self.variables["y_action"][i]), axis=1) for i in range(len(self.variables["y"]))]
+        loss = np.sum([tf.nn.l2_loss(y_1d[i] - self.variables["y_true"]) for i in range(len(y_1d))])
 
         l1_reg = 0
         l2_reg = 0
@@ -209,12 +214,16 @@ class QNeuralNetwork():
             temp = sess.run(self.decay_steps) * 2
             sess.run(self.decay_steps_assign, feed_dict={self.decay_steps_pl: temp})
         
-        self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
-            global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
+        # self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
+        #     global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
+
+        self.decay_learning_rate = tf.maximum(np.float64(10e-10), self.learning_rate - self.global_step / self.decay_steps * self.learning_rate * 1e-3)
 
     def get_reward(self, observation, sess):
         feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}
-        reward = np.squeeze(sess.run(self.variables["y"], feed_dict=feed_dic))
+        reward = sess.run(self.variables["y"], feed_dict=feed_dic)
+        reward = [np.squeeze(i) for i in reward]
+
         return reward
 
     def best_choice(self, observation, sess):
@@ -225,9 +234,14 @@ class QNeuralNetwork():
             sess: tensorflow session, allow multiprocessing
         """
         assert self.initialised, "This model must be initialised (self.initialisation())"
-        reward = self.get_reward(observation, sess)
-
-        return np.argmax(reward), np.max(reward)
+        reward_temp = self.get_reward(observation, sess)
+        reward = []
+        for i in reward_temp:
+            i = np.clip(i, 1e-10, 1-1e-10)
+            i = i / np.sum(i)
+            reward.append(np.squeeze(i))
+        choice = [np.random.choice(range(len(i)), p = i) for i in reward]
+        return choice, [reward[j][i] for j, i in enumerate(choice)]
 
     def weighted_choice(self, observation, sess):
         """

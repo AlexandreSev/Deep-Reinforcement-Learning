@@ -43,8 +43,30 @@ class slave_worker_n_step(mp.Process):
         self.t_max = t_max * action_replay
         self.gamma = gamma
         self.env = gym.make(env_name)
-        self.output_size = self.env.action_space.n
-        self.input_size = self.env.observation_space.shape[0]
+
+        if type(self.env.observation_space) == gym.spaces.discrete.Discrete:
+            self.input_size = [self.env.observation_space.n]
+            self.decode_obs = lambda r: np.eye(self.env.observation_space.n)[r]
+        else:
+            self.input_size = [self.env.observation_space.shape[0]]
+            self.decode_obs = lambda r: r
+
+        if type(self.env.action_space) == gym.spaces.box.Box:
+            self.output_size = [50]
+            action_range = self.env.action_space.high[0] - self.env.action_space.low[0]
+            self.action_space = [self.env.action_space.low[0] + action_range * (i+.5) / self.output_size[0]
+                for i in range(self.output_size[0])]
+        elif type(self.env.action_space) == gym.spaces.discrete.Discrete:
+            self.output_size = [self.env.action_space.n]
+            self.action_space = [i for i in range(self.output_size[0])]
+        elif type(self.env.action_space) == gym.spaces.tuple_space.Tuple:
+            self.output_size = []
+            for space in self.env.action_space.spaces:
+                if type(space) == gym.spaces.discrete.Discrete:
+                    self.output_size.append(space.n)
+                else:
+                    NotImplementedError
+
         self.verbose = verbose
         self.epsilon_ini = epsilon_ini
         self.weighted = weighted
@@ -58,14 +80,14 @@ class slave_worker_n_step(mp.Process):
 
         if callback:
             self.callback = cb.callback(batch_size=callback_batch_size, saving_directory=callback_name, 
-                                    observation_size=self.input_size, action_size=self.output_size)
+                                    observation_size=self.input_size, action_size=len(self.output_size))
         else:
             self.callback = None
 
-        if policy is None:
-            self.policy = self.env.action_space.sample
-        else:
-            self.policy = policy
+        # if policy is None:
+        #     self.policy = self.env.action_space.sample
+        # else:
+        self.policy = policy
 
         self.qnn = qnn.QNeuralNetwork(input_size=self.input_size, output_size=self.output_size, 
                 n_hidden=model_option["n_hidden"], hidden_size=model_option["hidden_size"], 
@@ -99,6 +121,7 @@ class slave_worker_n_step(mp.Process):
         action_replay = 1
 
         observation = self.env.reset()
+        observation = self.decode_obs(observation)
 
         rewards_env = []
         estimated_rewards_env = []
@@ -130,13 +153,22 @@ class slave_worker_n_step(mp.Process):
                 self.qnn.read_value_from_theta(self.sess, self.theta_prime)
 
                 if action_replay == 1:
-                    random, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.env, 
+                    random, action = epsilon_greedy_policy(self.qnn, observation, epsilon, self.output_size, 
                                                     self.sess, self.policy, self.weighted)
+                    if type(self.env.action_space) == gym.spaces.discrete.Discrete:
+                        action = action[0]
+                        env_action = action
+                    elif type(self.env.action_space) == gym.spaces.box.Box:
+                        env_action = [self.action_space[action[i]] for i in range(len(action))]
+                        action = action[0]
+                    else:
+                        env_action = action
                     action_replay = self.action_replay
                 else:
                     action_replay -= 1
 
-                observation, reward, done, info = self.env.step(action) 
+                observation, reward, done, info = self.env.step(action)
+                observation = self.decode_obs(observation) 
 
                 t_env +=1
                 
@@ -160,6 +192,7 @@ class slave_worker_n_step(mp.Process):
                 if done:
                     nb_env += 1
                     observation = self.env.reset()
+                    observation = self.decode_obs(observation)
                     if self.callback:
                         self.callback.store_rpe(rpe)
                         self.callback.store_hp(epsilon, self.sess.run(self.qnn.decay_learning_rate))
@@ -183,7 +216,7 @@ class slave_worker_n_step(mp.Process):
             if done:
                 R = 0
             else:
-                R = self.qnn.best_reward(observation, self.sess, self.weighted)
+                R = self.qnn.best_reward(observation, self.sess, self.weighted)[0]
 
             true_reward = []
             for i in range(t - 1, -1, -1):
@@ -193,12 +226,13 @@ class slave_worker_n_step(mp.Process):
             if self.callback:
                 estimated_rewards_env += true_reward[::-1]
                 if done:
-                    history = np.zeros((len(estimated_rewards_env), 4 + self.output_size))
+                    history = np.zeros((len(estimated_rewards_env), 4 + np.sum(self.output_size)))
                     history[:, 0] = np.arange(len(estimated_rewards_env))
                     history[:, 1] = rewards_env
                     history[:, 2] = estimated_rewards_env
                     history[:, 3] = nb_env * np.ones(len(estimated_rewards_env))
-                    history[:, 4:] = np.array(rewards)
+                    temp = np.array([np.concatenate(i) for i in rewards])
+                    history[:, 4:] = temp
                     self.callback.write_history(history)
                     rewards_env = []
                     estimated_rewards_env = []
@@ -206,15 +240,23 @@ class slave_worker_n_step(mp.Process):
 
 
             action_batch.reverse()
-            action_batch_multiplier = np.eye(self.output_size)[action_batch]
+            if len(self.output_size) == 1:
+                action_batch = [[i] for i in action_batch]
+            action_batch = np.array(action_batch)
+
+            action_batch_multiplier = [np.eye(self.output_size[0])[action_batch[:, 0]]]
+            for i in range(1, len(self.output_size)):
+                action_batch_multiplier.append(np.eye(self.output_size[i])[action_batch[:,i]])
+
             y_batch_arr = np.array(true_reward)
 
             shuffle = np.arange(len(y_batch_arr))
             np.random.shuffle(shuffle)
             
             feed_dict = {self.qnn.variables["input_observation"]: observation_batch[1:, :][shuffle, :],
-                         self.qnn.variables["y_true"]: y_batch_arr[shuffle], 
-                         self.qnn.variables["y_action"]: action_batch_multiplier[shuffle, :]}
+                         self.qnn.variables["y_true"]: y_batch_arr[shuffle]}
+            for i in range(len(self.output_size)):
+                feed_dict[self.qnn.variables["y_action"][i]] = action_batch_multiplier[i][shuffle, :]
 
             self.qnn.read_value_from_theta(self.sess, self.theta_prime)
             
