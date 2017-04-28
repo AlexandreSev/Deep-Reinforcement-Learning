@@ -92,8 +92,9 @@ class tester_worker(mp.Process):
         n_temp =  "Try_" + str(len(os.listdir(checkpoints_path)) )
         self.checkpoints_path = pjoin(checkpoints_path, n_temp)
         os.mkdir(self.checkpoints_path)
-        self.checkpoints_path = pjoin(self.checkpoints_path, "intermediate_weights")
         self.final_weights_path = pjoin(self.checkpoints_path, "final_weights")
+        self.best_weights_path = pjoin(self.checkpoints_path, "best_weights")
+        self.checkpoints_path = pjoin(self.checkpoints_path, "intermediate_weights")
         self.checkpoint = checkpoint
         self.last_checkpoint = time.time()
 
@@ -116,6 +117,7 @@ class tester_worker(mp.Process):
         self.current_mean = np.mean(self.history)
         if self.current_mean > self.max_mean:
             self.max_mean = self.current_mean
+            self.saver.save(self.sess, self.best_weights_path)
         if (np.mean(self.history)<self.goal) :
             return False
         else:
@@ -132,10 +134,10 @@ class tester_worker(mp.Process):
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
-        saver = tf.train.Saver()
+        self.saver = tf.train.Saver()
         if self.warmstart:
             self.nn.read_value_from_theta(self.sess, settings.l_theta)
-            saver.restore(self.sess, self.weights_path)
+            self.saver.restore(self.sess, self.weights_path)
             self.nn.assign_value_to_theta(self.sess)
             print("Model successfully loaded")
 
@@ -156,7 +158,7 @@ class tester_worker(mp.Process):
             
             if time.time() - self.last_checkpoint > self.checkpoint:
                 self.last_checkpoint = time.time()
-                save_path = saver.save(self.sess, self.checkpoints_path)
+                save_path = self.saver.save(self.sess, self.checkpoints_path)
                 print("######################################")
                 print("# Model saved in %s #"%save_path)
                 print("######################################")
@@ -214,7 +216,7 @@ class tester_worker(mp.Process):
             nb_env += 1
 
         print("Training completed")
-        save_path = saver.save(self.sess, self.final_weights_path)
+        save_path = self.saver.save(self.sess, self.final_weights_path)
         print("Model saved in %s"%save_path)
         print("T final = %s"%self.last_T)
         print("Done in %s environments"%(self.nb_env-100))

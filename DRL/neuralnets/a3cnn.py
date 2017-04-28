@@ -196,12 +196,12 @@ class A3CNeuralNetwork():
             log_pi.append(tf.log(tf.clip_by_value(self.variables["actions"][i], 1e-10, 1.)))
             pi_actions.append(tf.reduce_sum(tf.multiply(log_pi[i] , self.variables["y_action"][i]), axis=1))
         
-        self.loss_policy = 0.
+        self.loss_policy = []
         for j in pi_actions:
-            self.loss_policy += -tf.reduce_sum(tf.multiply(j, self.variables["loss_policy_ph"]))
+            self.loss_policy += [-tf.reduce_sum(tf.multiply(j, self.variables["loss_policy_ph"]))]
 
         for i in range(len(log_pi)):
-            self.loss_policy -= self.beta_reg * tf.reduce_sum(tf.multiply(self.variables["actions"][i], log_pi[i]))
+            self.loss_policy[i] -= self.beta_reg * tf.reduce_sum(tf.multiply(self.variables["actions"][i], log_pi[i]))
 
         self.loss_vf = tf.nn.l2_loss(self.variables["values"] - self.variables["y_true"])
         
@@ -217,9 +217,9 @@ class A3CNeuralNetwork():
                 (key[-7:] != "_assign")]
 
         self.updates = []
-        #for i in range(len(self.loss_policy)):
-        self.updates += self.optimizer.compute_gradients(self.loss_policy,#[i], 
-                                        [self.variables[key] for key in keys])
+        for i in range(len(self.loss_policy)):
+            self.updates += self.optimizer.compute_gradients(self.loss_policy[i], 
+                                            [self.variables[key] for key in keys])
         self.updates += self.optimizer.compute_gradients(self.loss_vf, 
                                 [self.variables[key] for key in keys])
         
@@ -245,7 +245,7 @@ class A3CNeuralNetwork():
         #self.decay_learning_rate = tf.train.exponential_decay(self.learning_rate,
         #    global_step=self.global_step, decay_steps=self.decay_steps, decay_rate=0.999)
 
-        self.decay_learning_rate = self.learning_rate - self.global_step / self.decay_steps * self.learning_rate * 1e-3
+        self.decay_learning_rate = tf.maximum(np.float64(10e-10), self.learning_rate - self.global_step / self.decay_steps * self.learning_rate * 1e-3)
 
     def get_reward(self, observation, sess):
         feed_dic = {self.variables["input_observation"]: observation.reshape((1, -1))}

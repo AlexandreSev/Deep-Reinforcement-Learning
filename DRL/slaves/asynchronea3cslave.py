@@ -253,6 +253,13 @@ class slave_worker_a3c(mp.Process):
 
             diff = self.a3cnn.assign_value_to_theta(self.sess)
 
+            for i in settings.l_theta:
+                if np.any(np.isnan(i)):
+                    print("#########"*50)
+                    print(" theta is nan ")
+                    print(i)
+                    print("#########"*50)
+
             if self.callback:
                 self.callback.store_diff(diff)
 
