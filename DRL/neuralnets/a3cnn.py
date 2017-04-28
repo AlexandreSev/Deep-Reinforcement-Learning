@@ -265,17 +265,11 @@ class A3CNeuralNetwork():
         reward_temp = sess.run(self.variables["actions"], feed_dict=feed_dic)
         reward = []
         for i in reward_temp:
+            i = np.clip(i, 1e-10, 1-1e-10)
+            i = i / np.sum(i)
             reward.append(np.squeeze(i))
         value = sess.run(self.variables["values"], feed_dict = feed_dic)
-        try:
-            choice = [np.random.choice(range(len(i)), p = i) for i in reward]
-        except:
-            print("######################" * 50)
-            print(reward)
-            print("######################" * 50)
-            raise ValueError
-        if len(choice) == 1:
-            choice = choice[0]
+        choice = [np.random.choice(range(len(i)), p = i) for i in reward]
         return choice, value[0, 0]
 
     def weighted_choice(self, observation, sess):

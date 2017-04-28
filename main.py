@@ -50,12 +50,9 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
     env_temp = gym.make(env_name)
 
     
-    if type(env_temp.observation_space) == gym.spaces.discrete.Discrete:
-        input_size = [env_temp.observation_space.n]
-    else:
-        input_size = [env_temp.observation_space.shape[0]]
-
-    if type(env_temp.action_space) == gym.spaces.tuple_space.Tuple:
+    if type(env_temp.action_space) == gym.spaces.box.Box:
+        output_size = [50]
+    elif type(env_temp.action_space) == gym.spaces.tuple_space.Tuple:
         output_size = []
         for space in env_temp.action_space.spaces:
             if type(space) == gym.spaces.discrete.Discrete:
@@ -64,6 +61,11 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
                 NotImplementedError
     else:
         output_size = [env_temp.action_space.n]
+    
+    if type(env_temp.observation_space) == gym.spaces.discrete.Discrete:
+        input_size = [env_temp.observation_space.n]
+    else:
+        input_size = [env_temp.observation_space.shape[0]]
 
 
     

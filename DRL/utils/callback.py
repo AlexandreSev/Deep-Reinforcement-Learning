@@ -40,7 +40,7 @@ class callback():
 		self.rewards[self.counter] = reward
 		self.random[self.counter] = random
 		self.action[self.counter] = action
-		self.observation[self.counter] = observation
+		self.observation[self.counter] = np.squeeze(observation)
 		self.counter += 1
 
 		if self.counter == self.batch_size:
