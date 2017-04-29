@@ -19,10 +19,10 @@ from DRL.utils.settings import init
 
 def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
          model_option={"n_hidden":1, "hidden_size":[10]}, Iasyncupdate=5,
-         Itarget=100, gamma=0.9, learning_rate=0.001, several_eps=True, epsilon_ini=0.9, 
+         Itarget=100, gamma=0.9, several_eps=True, epsilon_ini=0.9, 
          n_sec_print=10, master=False, goal=495, len_history=100, render=False, weighted=False, 
          eps_fall=50000, callback=False, action_replay=1, reset=False, warmstart=False, 
-         weights_path="./Acrobot_v1/intermediate_weights", nb_render=5, **kwargs):
+         weights_path="./Acrobot_v1/intermediate_weights", nb_render=1, **kwargs):
     """
     Parameters:
         nb_process: number of slaves used in the training
@@ -101,7 +101,7 @@ def main(nb_process, T_max=5000, t_max=5, env_name="CartPole-v0", algo="nstep",
         raise Exception("Not understood algorithm")
 
 
-    exemple = tester_worker(algo=algo, T_max=T_max, t_max=10000, model_option=model_option, env_name=env_name, 
+    exemple = tester_worker(algo=algo, T_max=T_max, t_max=500, model_option=model_option, env_name=env_name, 
                             n_sec_print=n_sec_print, goal=goal, len_history=len_history, Itarget=Itarget,
                             render=render, weighted=weighted, callback=callback, 
                             callback_name="callbacks/tester", warmstart=warmstart, 
@@ -130,12 +130,14 @@ if __name__=="__main__":
     args = sys.argv
     #np.random.seed(42)
     if len(args)>2:
-        main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":2, "hidden_size":[128, 128]}, 
-            render=False, master=False, env_name="CartPole-v1", goal=495, learning_rate=0.001, 
-            weighted=False, algo="a3c", eps_fall=10000, callback=True)
+        main(int(args[1]), T_max=int(args[2]), model_option={"n_hidden":1, "hidden_size":[64]}, 
+            render=False, master=False, env_name="CartPole-v1", goal=9900, weighted=False, 
+            algo="nstep", eps_fall=100000, callback=True, Itarget=100, action_replay=1, 
+            reset=True, warmstart=False, weights_path="./checkpoints/cartpole_v1/best_weights",
+            nb_render=1, t_max=5)
     else:
-        main(8, T_max=10000000, model_option={"n_hidden":1, "hidden_size":[64]}, 
-            render=False, master=False, env_name="CartPole-v1", goal=9900, learning_rate=0.001, 
-            weighted=False, algo="a3c", eps_fall=100000, callback=True, Itarget=100, action_replay=1, 
+        main(8, T_max=100000000, model_option={"n_hidden":1, "hidden_size":[64]}, 
+            render=False, master=False, env_name="CartPole-v1", goal=9900, weighted=False, 
+            algo="nstep", eps_fall=100000, callback=True, Itarget=100, action_replay=1, 
             reset=True, warmstart=False, weights_path="./checkpoints/cartpole_v1/best_weights",
             nb_render=1, t_max=5)
