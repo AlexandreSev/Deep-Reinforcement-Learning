@@ -14,7 +14,7 @@ n_hidden = 2
 hidden_size = [64, 128]
 
 #Shall the tester render its actions ?
-render = False
+render = True
 
 #Shall the first learner render its action ?
 master = False
