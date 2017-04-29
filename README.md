@@ -8,7 +8,7 @@ https://arxiv.org/pdf/1602.01783.pdf
 
 A user-friendly demonstration is available in the files demo_training.py and dome_trained.py, where parameters are explained.
 
-- demo_training.py is configured by default to show the training of A3C on the environment CartPole with 4 learners.
+- demo_training.py is configured by default to show the training of A3C on the environment CartPole with 8learners.
 
 - demo_trained.py is configured to show the result of a fully trained A3C on this same environment.
 
